@@ -447,7 +447,7 @@
                   "i128": "4000000000"
                 },
                 {
-                  "string": "Torre Pitic"
+                  "string": "Torre Culiac\\xc3\\xa1n"
                 }
               ]
             }
@@ -986,7 +986,7 @@
                       "symbol": "beneficiary"
                     },
                     "val": {
-                      "string": "Torre Pitic"
+                      "string": "Torre Culiac\\xc3\\xa1n"
                     }
                   },
                   {

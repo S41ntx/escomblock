@@ -144,7 +144,7 @@ fn list_buy_ship_confirm() {
     t.core.retire(
         &t.buyer,
         &(400 * UNIT),
-        &String::from_str(&t.env, "Torre Pitic"),
+        &String::from_str(&t.env, "Torre Culiacán"),
     );
     assert_eq!(t.escb.balance(&t.buyer), 0);
     assert_eq!(t.market.counts(), (1, 1));
