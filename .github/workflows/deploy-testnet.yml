@@ -1,0 +1,74 @@
+name: Deploy testnet
+
+# Deploys both contracts to Stellar testnet with the real deploy script, seeds
+# one full flow, and commits app/.env.testnet so the Vercel/Pages build
+# connects to them. Run it from Actions > Deploy testnet > Run workflow, or by
+# changing .github/testnet-deploy.
+#
+# The throwaway testnet identities (admin, plant, lab, builder...) are kept as
+# a workflow artifact so later runs can register roles or top up test USDC.
+# They hold only testnet funds.
+on:
+  workflow_dispatch:
+    inputs:
+      plants:
+        description: "Direcciones G de plantas a registrar (separadas por espacio)"
+        required: false
+        default: ""
+      labs:
+        description: "Direcciones G de laboratorios a registrar (separadas por espacio)"
+        required: false
+        default: ""
+  push:
+    paths:
+      - .github/testnet-deploy
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-testnet
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/stellar
+          key: stellar-cli-28.1.0-${{ runner.os }}
+      - name: Install stellar CLI
+        run: command -v stellar || cargo install --locked stellar-cli@28.1.0 --no-default-features
+      - name: Deploy and seed
+        env:
+          PLANTS: ${{ inputs.plants }}
+          LABS: ${{ inputs.labs }}
+        run: ./scripts/deploy.sh testnet --seed
+      - name: Save testnet identities
+        uses: actions/upload-artifact@v4
+        with:
+          name: testnet-identities
+          path: ~/.config/stellar/identity
+          retention-days: 90
+      - name: Commit app/.env.testnet
+        run: |
+          cp app/.env.testnet.local app/.env.testnet
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/.env.testnet
+          git commit -m "Testnet deployment: contract ids for the app" || exit 0
+          git push
+      - name: Summary
+        run: |
+          {
+            echo "### Escomblock on testnet"
+            echo '```'
+            cat app/.env.testnet
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
