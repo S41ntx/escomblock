@@ -16,7 +16,7 @@ export default function Home() {
         <div className="lede">
           <p>
             En casi todo México el escombro no está regulado y termina en baldíos y arroyos. Escomblock lo
-            convierte en bloques de mampostería que resisten el calor y la humedad de Hermosillo, y usa
+            convierte en bloques de mampostería que resisten el calor y la humedad de Sinaloa, y usa
             Stellar para que cada kilo sea trazable y cada recolector cobre en el momento.
           </p>
           <div className="btns">

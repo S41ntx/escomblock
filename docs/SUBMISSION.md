@@ -28,4 +28,4 @@
 
 ## University Track eligibility
 
-The University Track is for students **currently enrolled at a university in Chile**. Escomblock's research context is Hermosillo, Mexico. Confirm that at least one team member meets the enrollment requirement before entering this track; if not, enter the General Track only. If the team is in Chile, consider adding a Chilean pilot city to the pitch (the rubble problem and the circular-construction agenda are shared), and keep the Hermosillo origin story.
+The University Track is for students **currently enrolled at a university in Chile**. Escomblock's research context is Sinaloa, Mexico. Confirm that at least one team member meets the enrollment requirement before entering this track; if not, enter the General Track only. If the team is in Chile, consider adding a Chilean pilot city to the pitch (the rubble problem and the circular-construction agenda are shared), and keep the Sinaloa origin story.

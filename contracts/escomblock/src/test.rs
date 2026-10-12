@@ -89,7 +89,7 @@ fn delivery_pays_collector_instantly() {
     let t = setup();
     let id = t
         .core
-        .record_delivery(&t.plant, &t.collector, &2_000, &s(&t.env, "Hermosillo"));
+        .record_delivery(&t.plant, &t.collector, &2_000, &s(&t.env, "Sinaloa"));
     assert_eq!(id, 1);
     assert_eq!(t.usdc.balance(&t.collector), 2_000 * PRICE_PER_KG); // 10 USDC
     assert_eq!(
@@ -146,7 +146,7 @@ fn full_flow_certify_mint_and_retire() {
 
     let rid = t
         .core
-        .retire(&t.plant, &(500 * UNIT), &s(&t.env, "Constructora Sonora"));
+        .retire(&t.plant, &(500 * UNIT), &s(&t.env, "Constructora Sinaloa"));
     assert_eq!(t.escb.balance(&t.plant), 1_500 * UNIT);
     let r = t.core.retirement(&rid);
     assert_eq!(r.amount, 500 * UNIT);

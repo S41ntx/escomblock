@@ -2,7 +2,7 @@
 
 **Construction rubble → certified building blocks → paid collectors, traceable on Stellar.**
 
-*Escombro + block.* Escomblock began as a student research project: a masonry block made with recycled construction rubble that stays strong and well-bonded in the heat and water exposure of Hermosillo, Sonora. This repository turns that research into a working circular-economy platform on **Stellar + Soroban**.
+*Escombro + block.* Escomblock began as a student research project: a masonry block made with recycled construction rubble that stays strong and well-bonded in the heat and humidity of Sinaloa, Mexico. This repository turns that research into a working circular-economy platform on **Stellar + Soroban**.
 
 > 🇪🇸 [Resumen en español](#resumen-en-español) · 🚀 [Production deployment](docs/DEPLOY.md) · 🧱 [Architecture](docs/ARCHITECTURE.md) · 🎬 [Pitch video script](docs/PITCH.md) · ✅ [Submission checklist](docs/SUBMISSION.md)
 
@@ -104,14 +104,14 @@ The certification standard is configurable. Defaults (3.5 MPa minimum compressiv
 
 ## Roadmap
 
-1. Pilot with one block plant and one university materials lab in Hermosillo; same model for Chilean cities.
+1. Pilot with one block plant and one university materials lab in Sinaloa; same model for Chilean cities.
 2. Collector onboarding with a passkey smart wallet (no seed phrase) and cash-out through a local anchor (SEP-24).
 3. Municipal dashboard: rubble diverted per neighbourhood, from the public on-chain data.
 4. Sell ESCB retirements to builders who need to report waste management for green-building certifications.
 
 ## Resumen en español
 
-**Escomblock** es un proyecto de investigación estudiantil que propone un bloque de mampostería hecho con escombro reciclado, capaz de resistir el calor y la humedad de Hermosillo, Sonora. En casi todo México el escombro no está regulado; este proyecto lo convierte en material de construcción certificado y usa **Stellar** para:
+**Escomblock** es un proyecto de investigación estudiantil que propone un bloque de mampostería hecho con escombro reciclado, capaz de resistir el calor y la humedad de Sinaloa. En casi todo México el escombro no está regulado; este proyecto lo convierte en material de construcción certificado y usa **Stellar** para:
 
 - **Pagar al instante en USDC** a quienes recolectan y entregan escombro, en la misma transacción en que se pesa.
 - **Trazar cada kilo** desde la demolición hasta el bloque, con un **pasaporte público** por lote (QR en cada bloque).

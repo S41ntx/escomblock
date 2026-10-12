@@ -164,7 +164,7 @@
                   "u64": "2000"
                 },
                 {
-                  "string": "Hermosillo"
+                  "string": "Sinaloa"
                 }
               ]
             }
@@ -428,7 +428,7 @@
                       "symbol": "origin"
                     },
                     "val": {
-                      "string": "Hermosillo"
+                      "string": "Sinaloa"
                     }
                   },
                   {

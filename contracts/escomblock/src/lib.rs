@@ -101,7 +101,7 @@ pub struct Delivery {
     pub plant: Address,
     pub collector: Address,
     pub kg: u64,
-    /// Free-text origin, e.g. "Hermosillo, Son. - demolición Col. Centro".
+    /// Free-text origin, e.g. "Culiacán, Sin. - demolición Col. Centro".
     pub origin: String,
     pub payout: i128,
     pub timestamp: u64,
