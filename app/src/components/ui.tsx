@@ -73,15 +73,47 @@ export function SectionHead({ title, children }: { title: string; children?: Rea
 }
 
 export function NeedRole({ role }: { role: 'Plant' | 'Lab' }) {
-  const { snap } = useApp()
+  const { api, snap, busy, run } = useApp()
+  const acct = snap.account
+  const name = role === 'Plant' ? 'planta' : 'laboratorio'
+  if (snap.config.openRoles && acct) {
+    const other = role === 'Plant' ? acct.roles.includes('Lab') : acct.roles.includes('Plant')
+    return (
+      <Empty>
+        <p>
+          Esta red de prueba está abierta: cualquiera puede probar Escomblock como {name}. Regístrate con un clic
+          y firma en Freighter.
+        </p>
+        {other && (
+          <p>
+            Tu cuenta ya es {role === 'Plant' ? 'laboratorio' : 'planta'}. Puedes tener los dos roles, pero el
+            contrato no deja que una cuenta certifique sus propios lotes: usa otra cuenta de Freighter para el
+            {role === 'Plant' ? ' laboratorio' : ' otro rol'}.
+          </p>
+        )}
+        <div className="btns" style={{ justifyContent: 'center' }}>
+          <button
+            className="btn primary"
+            disabled={busy || !acct.funded}
+            onClick={() => run(() => api.join(role), () => `Listo: tu cuenta ya es ${name}.`)}
+          >
+            Registrarme como {name}
+          </button>
+        </div>
+        {!acct.funded && <p className="muted">Primero obtén XLM de prueba con el botón de la barra de wallet.</p>}
+      </Empty>
+    )
+  }
   return (
     <Empty>
       {role === 'Plant'
         ? 'Esta vista es para plantas registradas. '
         : 'Esta vista es para laboratorios registrados. '}
-      {snap.account
+      {acct
         ? 'Tu cuenta no tiene este rol: pide a Escomblock que la registre.'
-        : 'Conecta la wallet de tu planta o laboratorio.'}
+        : snap.config.openRoles
+          ? `Conecta tu wallet Freighter para registrarte como ${name} en esta red de prueba.`
+          : 'Conecta la wallet de tu planta o laboratorio.'}
     </Empty>
   )
 }

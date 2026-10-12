@@ -49,6 +49,7 @@ jobs:
         env:
           PLANTS: ${{ inputs.plants }}
           LABS: ${{ inputs.labs }}
+          OPEN: "1"
         run: ./scripts/deploy.sh testnet --seed
       - name: Save testnet identities
         uses: actions/upload-artifact@v4

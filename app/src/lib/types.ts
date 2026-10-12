@@ -15,6 +15,8 @@ export interface Config {
   feeBps: number
   claimAfterDays: number
   corePaused: boolean
+  /** Anyone can register as plant or lab (public test deployments). */
+  openRoles: boolean
   marketPaused: boolean
 }
 

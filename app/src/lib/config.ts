@@ -4,7 +4,10 @@ import { Asset, Networks } from '@stellar/stellar-sdk'
 
 type NetworkName = 'mainnet' | 'testnet' | 'local'
 
-const PRESETS: Record<NetworkName, { passphrase: string; rpcUrl: string; explorer: string; usdc: string }> = {
+const PRESETS: Record<
+  NetworkName,
+  { passphrase: string; rpcUrl: string; explorer: string; usdc: string; friendbot: string }
+> = {
   mainnet: {
     passphrase: Networks.PUBLIC,
     // SDF runs no public mainnet RPC: set VITE_RPC_URL to your provider.
@@ -12,6 +15,7 @@ const PRESETS: Record<NetworkName, { passphrase: string; rpcUrl: string; explore
     explorer: 'https://stellar.expert/explorer/public',
     // Circle USDC
     usdc: 'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+    friendbot: '',
   },
   testnet: {
     passphrase: Networks.TESTNET,
@@ -19,6 +23,7 @@ const PRESETS: Record<NetworkName, { passphrase: string; rpcUrl: string; explore
     explorer: 'https://stellar.expert/explorer/testnet',
     // Circle testnet USDC
     usdc: 'USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+    friendbot: 'https://friendbot.stellar.org',
   },
   // Development only: `stellar container start local` / stellar/quickstart --local
   local: {
@@ -26,6 +31,7 @@ const PRESETS: Record<NetworkName, { passphrase: string; rpcUrl: string; explore
     rpcUrl: 'http://localhost:8000/rpc',
     explorer: 'http://localhost:8000',
     usdc: '',
+    friendbot: 'http://localhost:8000/friendbot',
   },
 }
 
@@ -48,6 +54,8 @@ export const NETWORK = {
   passphrase: preset.passphrase,
   rpcUrl: (env.VITE_RPC_URL as string) || preset.rpcUrl,
   explorer: preset.explorer,
+  /** Test networks only: funds new accounts with test XLM. */
+  friendbot: preset.friendbot,
 }
 
 export const ASSETS = {
@@ -60,6 +68,8 @@ export const CONTRACTS = {
   market: (env.VITE_MARKET_ID as string) || '',
   usdc: ASSETS.usdc ? ASSETS.usdc.contractId(NETWORK.passphrase) : '',
   escb: ASSETS.escb ? ASSETS.escb.contractId(NETWORK.passphrase) : '',
+  /** Test networks only: hands out test USDC (contracts/faucet). */
+  faucet: name === 'mainnet' ? '' : (env.VITE_FAUCET_ID as string) || '',
 }
 
 /** Settings that are missing, by variable name. Empty when the app can run. */

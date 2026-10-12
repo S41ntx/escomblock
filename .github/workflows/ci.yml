@@ -64,7 +64,7 @@ jobs:
             sleep 2
           done
           docker logs stellar | tail -50; exit 1
-      - run: ./scripts/deploy.sh local --seed
+      - run: OPEN=1 ./scripts/deploy.sh local --seed
       - uses: actions/setup-node@v4
         with:
           node-version: 22

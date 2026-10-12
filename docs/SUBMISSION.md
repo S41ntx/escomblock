@@ -4,7 +4,7 @@
 
 | Criterion | Where it shows |
 | --- | --- |
-| **Technical execution** | Two Soroban contracts (SDK 27) with 25 tests, upgrade + emergency pause, paged views; end-to-end suite that deploys to a real Stellar network in CI and drives the dApp's code through the full flow; one-command mainnet deploy with locked ESCB issuer and SEP-1 `stellar.toml`; GitHub Pages deploy. |
+| **Technical execution** | Two Soroban contracts (SDK 27) with 28 tests, upgrade + emergency pause, paged views; end-to-end suite that deploys to a real Stellar network in CI and drives the dApp's code through the full flow; one-command mainnet deploy with locked ESCB issuer and SEP-1 `stellar.toml`; GitHub Pages deploy. |
 | **Meaningful use of Stellar** | USDC payouts through SAC inside the business transaction; ESCB as a classic Stellar asset whose SAC admin is the contract; escrow; burn-on-retire; cross-contract call market → core; contract events; Freighter signing. |
 | **Originality** | Starts from real materials research (rubble masonry block for a hot climate) and ties physical lab certification to on-chain credit issuance and a per-block QR passport. |
 | **Potential impact** | Pays informal collectors instantly, keeps rubble out of riverbeds and lots, gives builders verifiable recycled material. Categories: payments, financial inclusion, tokenization, smart contracts, public goods. |

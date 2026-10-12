@@ -21,6 +21,9 @@
 #   CLAIM_AFTER   seconds before a seller can claim an unconfirmed order (default 7 days)
 #   USDC_ASSET    override the USDC asset (CODE:ISSUER)
 #   YES=1         skip the mainnet confirmation prompt
+# Test networks only:
+#   OPEN=1        public sandbox: anyone can register as plant or lab (`join`)
+#                 and claim test USDC from a faucet contract
 set -euo pipefail
 
 NET="${1:-}"
@@ -235,6 +238,20 @@ if [[ "$SEED" == --seed ]]; then
   invoke "$CORE_ID" "$ADMIN_KEY" -- stats
 fi
 
+FAUCET_ID=""
+if [[ "$NET" != mainnet && "${OPEN:-}" == 1 ]]; then
+  say "Opening the sandbox: self-service roles and a test-USDC faucet"
+  invoke "$CORE_ID" "$ADMIN_KEY" -- set_open_roles --open true >/dev/null
+  if [[ -n "${USDC_ADMIN_KEY:-}" ]]; then
+    # 1 000 test USDC per account per hour. The faucet becomes the USDC admin.
+    FAUCET_ID=$(stellar contract deploy --wasm "$WASM_DIR/escomblock_faucet.wasm" --source-account "$ADMIN_KEY" $(net) \
+      --alias "escomblock-faucet-$NET" -- \
+      --token "$USDC_ID" --amount 10000000000 --cooldown 3600)
+    invoke "$USDC_ID" "$USDC_ADMIN_KEY" -- set_admin --new_admin "$FAUCET_ID" >/dev/null
+    echo "  faucet $FAUCET_ID"
+  fi
+fi
+
 say "Writing ${ENV_FILE#"$ROOT"/}"
 {
   echo "VITE_NETWORK=$APP_NETWORK"
@@ -243,6 +260,7 @@ say "Writing ${ENV_FILE#"$ROOT"/}"
   echo "VITE_MARKET_ID=$MARKET_ID"
   echo "VITE_ESCB_ASSET=$ESCB_ASSET"
   echo "VITE_USDC_ASSET=$USDC_ASSET"
+  [[ -z "$FAUCET_ID" ]] || echo "VITE_FAUCET_ID=$FAUCET_ID"
 } >"$ENV_FILE"
 cat "$ENV_FILE"
 

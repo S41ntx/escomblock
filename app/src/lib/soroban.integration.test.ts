@@ -79,13 +79,33 @@ describe.runIf(run)('SorobanApi against a live network', () => {
     )
   }, 60_000)
 
+  it('a visitor self-registers as plant, gets test USDC and pays a collector', async () => {
+    const visitorKey = await fresh()
+    const visitor = new SorobanApi(visitorKey.publicKey())
+    let snap = await visitor.snapshot()
+    expect(snap.config.openRoles).toBe(true)
+    expect(snap.account?.roles).toEqual([])
+
+    await visitor.join('Plant')
+    await visitor.trust('usdc')
+    await visitor.claimUsdc()
+    snap = await visitor.snapshot()
+    expect(snap.account?.roles).toEqual(['Plant'])
+    expect(snap.account?.usdc).toBe(1000)
+    await expect(visitor.claimUsdc()).rejects.toThrow('Ya pediste USDC de prueba hace menos de una hora.')
+
+    const d = await visitor.recordDelivery(collectorKey.publicKey(), 1000, 'Visitante')
+    expect(d.id).toBeGreaterThan(0)
+  }, 120_000)
+
   it('runs the whole flow: pay, batch, certify, sell, deliver, retire', async () => {
     const before = await plant.snapshot()
+    const collectorBefore = (await collector.snapshot()).account?.usdc ?? 0
 
     const d = await plant.recordDelivery(collectorKey.publicKey(), 2500, 'Prueba de integración')
     expect(d.hash).toMatch(/^[0-9a-f]{64}$/)
     const afterPay = await collector.snapshot()
-    expect(afterPay.account?.usdc).toBeCloseTo(2500 * before.config.pricePerKg, 7)
+    expect(afterPay.account?.usdc).toBeCloseTo(collectorBefore + 2500 * before.config.pricePerKg, 7)
 
     const b = await plant.createBatch([d.id!], 500, 'IT mix')
     const c = await lab.certifyBatch(b.id!, 4.8, 10.2, 60, hash)

@@ -56,6 +56,7 @@ pub enum Error {
     RetirementNotFound = 11,
     InvalidParams = 12,
     Paused = 13,
+    RolesClosed = 14,
 }
 
 #[contracttype]
@@ -186,6 +187,7 @@ enum DataKey {
     Config,
     Stats,
     Paused,
+    OpenRoles,
     NextDelivery,
     NextBatch,
     NextRetirement,
@@ -299,6 +301,34 @@ impl Escomblock {
             account,
             role,
             enabled,
+        }
+        .publish(&env);
+        bump_instance(&env);
+    }
+
+    /// Lets any account register itself as a plant or lab with `join`.
+    /// Meant for public test deployments; off unless the admin enables it.
+    pub fn set_open_roles(env: Env, open: bool) {
+        Self::config(env.clone()).admin.require_auth();
+        env.storage().instance().set(&DataKey::OpenRoles, &open);
+        bump_instance(&env);
+    }
+
+    /// Self-registration, only while open roles are enabled. A lab still
+    /// cannot certify a batch from its own plant account.
+    pub fn join(env: Env, account: Address, role: Role) {
+        account.require_auth();
+        require_active(&env);
+        if !Self::open_roles(env.clone()) {
+            panic_with_error!(&env, Error::RolesClosed);
+        }
+        let key = DataKey::Role(account.clone(), role);
+        env.storage().persistent().set(&key, &true);
+        bump(&env, &key);
+        RoleSet {
+            account,
+            role,
+            enabled: true,
         }
         .publish(&env);
         bump_instance(&env);
@@ -581,6 +611,13 @@ impl Escomblock {
             .instance()
             .get(&DataKey::Stats)
             .unwrap_or_default()
+    }
+
+    pub fn open_roles(env: Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&DataKey::OpenRoles)
+            .unwrap_or(false)
     }
 
     pub fn paused(env: Env) -> bool {

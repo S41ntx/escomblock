@@ -226,6 +226,28 @@ function Live() {
                       : 'Recolector / comprador'}
                 </strong>
               </div>
+              {!acct.funded && NETWORK.friendbot && (
+                <div className="btns">
+                  <button
+                    className="btn small"
+                    disabled={busy}
+                    onClick={() => run(() => api.fundXlm(), () => 'Recibiste XLM de prueba: tu cuenta ya existe.')}
+                  >
+                    Obtener XLM de prueba
+                  </button>
+                </div>
+              )}
+              {acct.funded && acct.trust.usdc && CONTRACTS.faucet && (
+                <div className="btns">
+                  <button
+                    className="btn small ghost"
+                    disabled={busy}
+                    onClick={() => run(() => api.claimUsdc(), () => 'Recibiste 1,000 USDC de prueba.')}
+                  >
+                    Pedir USDC de prueba
+                  </button>
+                </div>
+              )}
               {acct.funded && (!acct.trust.usdc || !acct.trust.escb) && (
                 <div className="btns">
                   {!acct.trust.usdc && (
@@ -254,8 +276,15 @@ function Live() {
 
         {acct && !acct.funded && (
           <div className="notice" role="status">
-            Tu cuenta aún no existe en {NETWORK.label}. Envíale al menos 2 XLM desde un exchange o de otra wallet para
-            activarla; después podrás activar USDC y ESCB.
+            {NETWORK.friendbot
+              ? `Tu cuenta aún no existe en ${NETWORK.label}. Pulsa "Obtener XLM de prueba" para crearla gratis; después activa USDC y ESCB.`
+              : `Tu cuenta aún no existe en ${NETWORK.label}. Envíale al menos 2 XLM desde un exchange o de otra wallet para activarla; después podrás activar USDC y ESCB.`}
+          </div>
+        )}
+        {snap?.config.openRoles && (
+          <div className="notice" role="status">
+            Red de prueba abierta: conecta Freighter en Testnet y prueba todo. Regístrate como planta o laboratorio
+            desde su pestaña y pide USDC de prueba en la barra de wallet. Nada de esto tiene valor real.
           </div>
         )}
         {snap && (snap.config.corePaused || snap.config.marketPaused) && (

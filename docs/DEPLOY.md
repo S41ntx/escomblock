@@ -91,4 +91,4 @@ Records are stored in persistent storage and extended for 180 days on every writ
 
 ## 5. Staging
 
-`./scripts/deploy.sh testnet --seed` runs the same deployment on testnet with friendbot accounts and a full sample flow. Build the app for it with `npm run build -- --mode testnet`.
+`./scripts/deploy.sh testnet --seed` runs the same deployment on testnet with friendbot accounts and a full sample flow. Build the app for it with `npm run build -- --mode testnet`. Add `OPEN=1` to make it a public sandbox where anyone can register as a plant or lab and claim test USDC (see [ARCHITECTURE.md](ARCHITECTURE.md#public-test-sandbox)); never on mainnet, where the script ignores it.

@@ -381,3 +381,42 @@ fn page_size_is_capped() {
     }
     assert_eq!(t.core.deliveries(&1, &1_000).len(), MAX_PAGE);
 }
+
+#[test]
+fn join_requires_open_roles() {
+    let t = setup();
+    let visitor = Address::generate(&t.env);
+    assert!(!t.core.open_roles());
+    assert_eq!(
+        t.core
+            .try_join(&visitor, &Role::Plant)
+            .unwrap_err()
+            .unwrap(),
+        e(Error::RolesClosed)
+    );
+
+    t.core.set_open_roles(&true);
+    t.core.join(&visitor, &Role::Plant);
+    assert!(t.core.has_role(&visitor, &Role::Plant));
+    assert!(!t.core.has_role(&visitor, &Role::Lab));
+}
+
+#[test]
+fn self_joined_lab_cannot_certify_its_own_batch() {
+    let t = setup();
+    t.core.set_open_roles(&true);
+    // The plant also registers as a lab: still blocked by lab != plant.
+    t.core.join(&t.plant, &Role::Lab);
+    t.core
+        .record_delivery(&t.plant, &t.collector, &1_000, &s(&t.env, "x"));
+    let b = t
+        .core
+        .create_batch(&t.plant, &vec![&t.env, 1], &100, &s(&t.env, "mix"));
+    assert_eq!(
+        t.core
+            .try_certify_batch(&t.plant, &b, &600, &800, &60, &hash(&t.env))
+            .unwrap_err()
+            .unwrap(),
+        e(Error::LabIsPlant)
+    );
+}

@@ -49,6 +49,7 @@ const CORE_ERRORS: Record<number, string> = {
   11: 'Ese retiro no existe.',
   12: 'Parámetros inválidos (¿el recolector es la misma planta?).',
   13: 'El registro está en pausa por mantenimiento.',
+  14: 'El registro libre de roles está cerrado en esta red.',
 }
 const MARKET_ERRORS: Record<number, string> = {
   1: 'Solo se pueden vender lotes certificados.',
@@ -65,6 +66,9 @@ const MARKET_ERRORS: Record<number, string> = {
   12: 'Parámetros inválidos.',
   13: 'No puedes comprar tus propios bloques.',
   14: 'El mercado está en pausa por mantenimiento.',
+}
+const FAUCET_ERRORS: Record<number, string> = {
+  1: 'Ya pediste USDC de prueba hace menos de una hora.',
 }
 
 function explain(err: unknown, table: Record<number, string>): Error {
@@ -144,7 +148,7 @@ export class SorobanApi {
     describe: (result: Dyn) => { text: string; kind: Activity['kind']; id?: number; passed?: boolean },
   ): Promise<TxResult> {
     if (!this.address) throw new Error('Conecta tu wallet Freighter primero.')
-    const table = id === CONTRACTS.market ? MARKET_ERRORS : CORE_ERRORS
+    const table = id === CONTRACTS.market ? MARKET_ERRORS : id === CONTRACTS.faucet ? FAUCET_ERRORS : CORE_ERRORS
     try {
       const c = await this.client(id)
       const tx = await c[method](args)
@@ -188,6 +192,33 @@ export class SorobanApi {
     }
   }
 
+  /** Test networks only: creates the connected account with test XLM. */
+  async fundXlm(): Promise<TxResult> {
+    if (!this.address || !NETWORK.friendbot) throw new Error('Conecta tu wallet Freighter primero.')
+    const res = await fetch(`${NETWORK.friendbot}?addr=${encodeURIComponent(this.address)}`)
+    if (!res.ok) throw new Error('Friendbot no respondió; intenta de nuevo en un momento.')
+    const body = await res.json().catch(() => ({}))
+    return { hash: typeof body.hash === 'string' ? body.hash : '' }
+  }
+
+  /** Test networks only: 1 000 test USDC from the faucet contract. */
+  claimUsdc() {
+    return this.write(CONTRACTS.faucet, 'claim', { to: this.address }, (amount) => ({
+      kind: 'info',
+      text: `${toAmount(amount).toLocaleString('es-MX')} USDC de prueba recibidos`,
+    }))
+  }
+
+  /** Self-registration as plant or lab, when the deployment allows it. */
+  join(role: Role) {
+    return this.write(
+      CONTRACTS.core,
+      'join',
+      { account: this.address, role: { tag: role, values: undefined } },
+      () => ({ kind: 'info', text: role === 'Plant' ? 'Cuenta registrada como planta' : 'Cuenta registrada como laboratorio' }),
+    )
+  }
+
   private async balance(asset: Asset | null, address: string): Promise<{ amount: number; trusted: boolean }> {
     if (!asset) return { amount: 0, trusted: false }
     try {
@@ -203,7 +234,7 @@ export class SorobanApi {
   async snapshot(): Promise<Snapshot> {
     const core = CONTRACTS.core
     const market = CONTRACTS.market
-    const [rawCfg, rawStats, counts, mcfg, mcounts, corePaused, marketPaused] = await Promise.all([
+    const [rawCfg, rawStats, counts, mcfg, mcounts, corePaused, marketPaused, openRoles] = await Promise.all([
       this.read<Dyn>(core, 'config'),
       this.read<Dyn>(core, 'stats'),
       this.read<[bigint, bigint, bigint]>(core, 'counts'),
@@ -211,6 +242,8 @@ export class SorobanApi {
       this.read<[bigint, bigint]>(market, 'counts'),
       this.read<boolean>(core, 'paused'),
       this.read<boolean>(market, 'paused'),
+      // Older deployments have no open_roles view.
+      this.read<boolean>(core, 'open_roles').catch(() => false),
     ])
     const [nDel, nBatch, nRet] = counts.map(toNum)
     const [nList, nOrd] = mcounts.map(toNum)
@@ -268,6 +301,7 @@ export class SorobanApi {
       claimAfterDays: toNum(mcfg.claim_after) / 86_400,
       corePaused,
       marketPaused,
+      openRoles,
     }
     const stats: Stats = {
       deliveries: toNum(rawStats.deliveries),

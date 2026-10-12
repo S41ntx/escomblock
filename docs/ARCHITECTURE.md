@@ -78,9 +78,20 @@ The client loads each contract's spec from the network, so no generated bindings
 
 ## Tests
 
-`cargo test` runs 25 tests:
+`cargo test` runs 28 tests:
 
-- core: instant payout, full flow (certify → mint → passport → retire), failing lab test, heat-cycle requirement, delivery reuse, cross-plant reuse, unregistered actors, self-certification, double certification, revoked roles, invalid inputs, admin params, pause, paged views and page-size cap.
+- core: instant payout, full flow (certify → mint → passport → retire), failing lab test, heat-cycle requirement, delivery reuse, cross-plant reuse, unregistered actors, self-certification, double certification, revoked roles, invalid inputs, admin params, pause, paged views and page-size cap, self-registration only while open roles are enabled (and still no self-certification).
 - market: list → buy → ship → confirm → retire, uncertified batch, ownership and over-listing, cancel/refund, cancel after shipping, claim timeout, delist + cancel credit return, guards, pause (open orders still settle), paged views.
+- faucet: test-USDC claim with a per-account cooldown.
 
-`npm run test:it` (app) runs the dApp's Stellar layer against a live network deployed by `scripts/deploy.sh local --seed`: reading without a wallet, trustline activation, role errors, and the full pay → batch → certify → list → buy → ship → confirm → retire flow. CI runs it on a Dockerized `stellar/quickstart` network on every push.
+`npm run test:it` (app) runs the dApp's Stellar layer against a live network deployed by `OPEN=1 scripts/deploy.sh local --seed`: reading without a wallet, trustline activation, role errors, self-registration plus faucet, and the full pay → batch → certify → list → buy → ship → confirm → retire flow. CI runs it on a Dockerized `stellar/quickstart` network on every push.
+
+## Public test sandbox
+
+Test deployments made with `OPEN=1` (the testnet workflow does this) are a free-to-try sandbox:
+
+- `set_open_roles(true)` lets any account call `join(account, Plant|Lab)` to register itself. Every other rule still applies; in particular a lab can never certify a batch from its own plant account, so trying the full flow takes two Freighter accounts.
+- `contracts/faucet` becomes the admin of the test USDC asset and gives 1,000 test USDC per account per hour.
+- The app shows "Obtener XLM de prueba" (friendbot), "Pedir USDC de prueba" and "Registrarme como planta / laboratorio" buttons.
+
+Mainnet deployments never enable open roles and never deploy the faucet: roles are granted by the admin and payouts use Circle USDC.

@@ -31,7 +31,7 @@ Every batch has a public **block passport** (lab results + every source delivery
 
 - **Micropayments that make sense.** A rubble delivery is worth 10–30 USDC. Sub-cent fees and ~5 s finality make paying every single trip viable; Stellar anchors let collectors cash out to local currency.
 - **Credits are real Stellar assets.** ESCB is a classic Stellar asset whose Stellar Asset Contract (SAC) admin is the Escomblock contract. Only certified batches can mint it, yet it shows up in any wallet, can be traded on the DEX, and is burned on retirement.
-- **Rules in Soroban, not in a spreadsheet.** Roles, double-use protection, lab independence, escrow and timeouts are enforced on-chain and covered by 25 contract tests plus an end-to-end suite that runs the app against a real Stellar network in CI.
+- **Rules in Soroban, not in a spreadsheet.** Roles, double-use protection, lab independence, escrow and timeouts are enforced on-chain and covered by 28 contract tests plus an end-to-end suite that runs the app against a real Stellar network in CI.
 - **Circle USDC via SAC.** Payouts and purchases use the Stellar Asset Contract of Circle's USDC on mainnet.
 - **Supply you can audit.** The ESCB issuer account is locked after deployment (master weight 0): no one, including the team, can issue ESCB outside the contract. The asset is described in a SEP-1 `stellar.toml`.
 
@@ -53,7 +53,7 @@ docs/                deployment guide, architecture, pitch video script, submiss
 
 ```bash
 rustup target add wasm32v1-none
-cargo test                     # 25 tests: core (15) + market (10)
+cargo test                     # 28 tests: core (17) + market (10) + faucet (1)
 stellar contract build
 ```
 
@@ -81,7 +81,7 @@ PLANT_SECRET=$(stellar keys show escomblock-plant) LAB_SECRET=$(stellar keys sho
 BUILDER_SECRET=$(stellar keys show escomblock-builder) npm run test:it   # e2e suite
 ```
 
-`./scripts/deploy.sh testnet --seed` does the same on Stellar testnet.
+`./scripts/deploy.sh testnet --seed` does the same on Stellar testnet. With `OPEN=1` the testnet deployment becomes a public sandbox: anyone can register as a plant or lab from the app and claim test USDC from a faucet contract. Mainnet never enables it.
 
 ## Contract API (core)
 
