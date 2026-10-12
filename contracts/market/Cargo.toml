@@ -1,0 +1,18 @@
+[package]
+name = "escomblock-market"
+description = "Escomblock market: escrowed USDC purchases of certified recycled-rubble blocks, bundled with ESCB credits"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+escomblock = { path = "../escomblock" }

@@ -1,0 +1,17 @@
+[package]
+name = "escomblock"
+description = "Escomblock core: rubble traceability, instant USDC payouts to collectors, lab certification and ESCB circularity credits"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }

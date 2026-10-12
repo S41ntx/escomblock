@@ -1,0 +1,7 @@
+target/
+node_modules/
+app/dist/
+app/dist-artifact/
+app/.env.local
+.stellar/
+.DS_Store
