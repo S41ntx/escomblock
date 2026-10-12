@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "cd app && npm ci",
-  "buildCommand": "cd app && npm run build -- --mode ${ESCOMBLOCK_MODE:-testnet}",
-  "outputDirectory": "app/dist",
+  "installCommand": "if [ -d app ]; then cd app; fi; npm ci",
+  "buildCommand": "MODE=${ESCOMBLOCK_MODE:-testnet}; if [ -d app ]; then (cd app && npm run build -- --mode $MODE) && rm -rf dist && cp -r app/dist dist; else npm run build -- --mode $MODE; fi",
+  "outputDirectory": "dist",
   "framework": null
 }
