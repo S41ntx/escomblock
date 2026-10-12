@@ -217,9 +217,9 @@ if [[ "$SEED" == --seed ]]; then
   invoke "$CORE_ID" "$ADMIN_KEY" -- set_role --account "$PLANT" --role Plant --enabled true >/dev/null
   invoke "$CORE_ID" "$ADMIN_KEY" -- set_role --account "$LAB" --role Lab --enabled true >/dev/null
   invoke "$CORE_ID" escomblock-plant -- record_delivery --plant "$PLANT" --collector "$COLLECTOR" \
-    --kg 6200 --origin "Demolición vivienda, Col. Centro, Sinaloa" >/dev/null
+    --kg 6200 --origin "Demolición vivienda, Col. Centro, Culiacán" >/dev/null
   invoke "$CORE_ID" escomblock-plant -- record_delivery --plant "$PLANT" --collector "$COLLECTOR" \
-    --kg 4800 --origin "Remodelación local, Sinaloa" >/dev/null
+    --kg 4800 --origin "Remodelación local, Culiacán" >/dev/null
   invoke "$CORE_ID" escomblock-plant -- create_batch --plant "$PLANT" --delivery_ids '[1,2]' \
     --blocks 2200 --mix "40 % escombro triturado + CPC 30R + arena" >/dev/null
   invoke "$CORE_ID" escomblock-lab -- certify_batch --lab "$LAB" --batch_id 1 \
@@ -231,7 +231,7 @@ if [[ "$SEED" == --seed ]]; then
   invoke "$MARKET_ID" escomblock-plant -- ship --seller "$PLANT" --order_id 1 >/dev/null
   invoke "$MARKET_ID" escomblock-builder -- confirm --buyer "$BUILDER" --order_id 1 >/dev/null
   invoke "$CORE_ID" escomblock-builder -- retire --from "$BUILDER" --amount 10000000000 \
-    --beneficiary "Torre Pitic, etapa 1" >/dev/null
+    --beneficiary "Torre Culiacán, etapa 1" >/dev/null
   invoke "$CORE_ID" "$ADMIN_KEY" -- stats
 fi
 
