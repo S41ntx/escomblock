@@ -318,3 +318,66 @@ fn admin_can_update_price_and_standard() {
         .record_delivery(&t.plant, &t.collector, &100, &s(&t.env, "x"));
     assert_eq!(t.usdc.balance(&t.collector), 100 * 100_000);
 }
+
+#[test]
+fn pause_blocks_writes_but_not_reads() {
+    let t = setup();
+    let d = t
+        .core
+        .record_delivery(&t.plant, &t.collector, &1_000, &s(&t.env, "x"));
+    t.core.set_paused(&true);
+    assert!(t.core.paused());
+    assert_eq!(
+        t.core
+            .try_record_delivery(&t.plant, &t.collector, &10, &s(&t.env, "x")),
+        Err(Ok(e(Error::Paused)))
+    );
+    assert_eq!(
+        t.core
+            .try_create_batch(&t.plant, &vec![&t.env, d], &100, &s(&t.env, "mix")),
+        Err(Ok(e(Error::Paused)))
+    );
+    assert_eq!(t.core.delivery(&d).kg, 1_000);
+    t.core.set_paused(&false);
+    t.core
+        .create_batch(&t.plant, &vec![&t.env, d], &100, &s(&t.env, "mix"));
+}
+
+#[test]
+fn paged_views() {
+    let t = setup();
+    for kg in 1..=7u64 {
+        t.core
+            .record_delivery(&t.plant, &t.collector, &(kg * 100), &s(&t.env, "x"));
+    }
+    let b = t
+        .core
+        .create_batch(&t.plant, &vec![&t.env, 1, 2], &50, &s(&t.env, "mix"));
+    t.core
+        .certify_batch(&t.lab, &b, &600, &800, &60, &hash(&t.env));
+    t.core.retire(&t.plant, &UNIT, &s(&t.env, "a"));
+
+    let page = t.core.deliveries(&3, &3);
+    assert_eq!(page.len(), 3);
+    assert_eq!(page.get(0).unwrap().id, 3);
+    assert_eq!(page.get(2).unwrap().id, 5);
+    assert_eq!(t.core.deliveries(&6, &10).len(), 2);
+    assert_eq!(t.core.deliveries(&0, &2).get(0).unwrap().id, 1);
+    assert_eq!(t.core.deliveries(&8, &10).len(), 0);
+    assert_eq!(t.core.deliveries(&1, &0).len(), 0);
+
+    let batches = t.core.batches(&1, &10);
+    assert_eq!(batches.len(), 1);
+    assert_eq!(batches.get(0).unwrap().certification.len(), 1);
+    assert_eq!(t.core.retirements(&1, &10).len(), 1);
+}
+
+#[test]
+fn page_size_is_capped() {
+    let t = setup();
+    for _ in 0..(MAX_PAGE + 5) {
+        t.core
+            .record_delivery(&t.plant, &t.collector, &1, &s(&t.env, "x"));
+    }
+    assert_eq!(t.core.deliveries(&1, &1_000).len(), MAX_PAGE);
+}

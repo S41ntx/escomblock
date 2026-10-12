@@ -109,9 +109,9 @@ function Gauge({
 function CertifyForm({ batch }: { batch: Batch }) {
   const { snap, api, run, busy } = useApp()
   const std = snap.config.standard
-  const [strength, setStrength] = useState('4.80')
-  const [absorption, setAbsorption] = useState('10.2')
-  const [cycles, setCycles] = useState('60')
+  const [strength, setStrength] = useState('')
+  const [absorption, setAbsorption] = useState('')
+  const [cycles, setCycles] = useState('')
   const [file, setFile] = useState<{ name: string; hash: string } | null>(null)
   const s = Number(strength) || 0
   const a = Number(absorption) || 0
@@ -123,8 +123,8 @@ function CertifyForm({ batch }: { batch: Batch }) {
       className="panel form"
       onSubmit={async (e) => {
         e.preventDefault()
-        const hash =
-          file?.hash ?? (await sha256Hex(`escomblock lote ${batch.id} ${s} MPa ${a} % ${c} ciclos`))
+        if (!file) return
+        const hash = file.hash
         run(
           () => api.certifyBatch(batch.id, s, a, c, hash),
           (r) =>
@@ -175,10 +175,13 @@ function CertifyForm({ batch }: { batch: Batch }) {
         <span className="hint">
           {file
             ? `sha-256 ${file.hash.slice(0, 24)}… se guarda en la cadena; el PDF queda contigo.`
-            : 'Solo se publica la huella sha-256 del archivo, nunca el archivo.'}
+            : 'Obligatorio. Solo se publica la huella sha-256 del archivo, nunca el archivo.'}
         </span>
       </div>
-      <button className={`btn ${passes ? 'primary' : ''}`} disabled={busy}>
+      <button
+        className={`btn ${passes ? 'primary' : ''}`}
+        disabled={busy || strength === '' || absorption === '' || cycles === '' || !file}
+      >
         {passes ? 'Certificar y emitir ESCB' : 'Registrar rechazo'}
       </button>
     </form>

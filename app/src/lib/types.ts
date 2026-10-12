@@ -1,5 +1,3 @@
-export type Mode = 'demo' | 'testnet'
-
 export type BatchStatus = 'Pending' | 'Certified' | 'Rejected'
 export type OrderStatus = 'Paid' | 'Shipped' | 'Completed' | 'Cancelled'
 export type Role = 'Plant' | 'Lab'
@@ -16,6 +14,8 @@ export interface Config {
   standard: Standard
   feeBps: number
   claimAfterDays: number
+  corePaused: boolean
+  marketPaused: boolean
 }
 
 export interface Delivery {
@@ -106,10 +106,12 @@ export interface Activity {
 
 export interface Account {
   address: string
-  name: string
   roles: Role[]
+  /** false when the account does not exist on the network yet */
+  funded: boolean
   usdc: number
   escb: number
+  trust: { usdc: boolean; escb: boolean }
 }
 
 export interface Snapshot {
@@ -128,26 +130,4 @@ export interface TxResult {
   hash: string
   id?: number
   passed?: boolean
-}
-
-export interface Api {
-  mode: Mode
-  snapshot(): Promise<Snapshot>
-  recordDelivery(collector: string, kg: number, origin: string): Promise<TxResult>
-  createBatch(deliveryIds: number[], blocks: number, mix: string): Promise<TxResult>
-  certifyBatch(
-    batchId: number,
-    strengthMpa: number,
-    absorptionPct: number,
-    thermalCycles: number,
-    reportHash: string,
-  ): Promise<TxResult>
-  list(batchId: number, qty: number, pricePerBlock: number): Promise<TxResult>
-  delist(listingId: number): Promise<TxResult>
-  buy(listingId: number, qty: number): Promise<TxResult>
-  ship(orderId: number): Promise<TxResult>
-  confirm(orderId: number): Promise<TxResult>
-  claim(orderId: number): Promise<TxResult>
-  cancel(orderId: number): Promise<TxResult>
-  retire(amount: number, beneficiary: string): Promise<TxResult>
 }

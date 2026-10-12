@@ -1,6 +1,6 @@
 # Guion del video pitch (≈ 3 min)
 
-El University Track pide explicar **el problema, la solución, cómo funciona y cómo usa Stellar**. Este guion cubre los cuatro en ese orden. Tiempos aproximados; graba la pantalla con la app en modo demo o testnet.
+El University Track pide explicar **el problema, la solución, cómo funciona y cómo usa Stellar**. Este guion cubre los cuatro en ese orden. Tiempos aproximados; graba la pantalla con la app en producción (mainnet), o en testnet si aún no despliegas.
 
 | Tiempo | Imagen | Voz |
 | --- | --- | --- |
@@ -12,13 +12,13 @@ El University Track pide explicar **el problema, la solución, cómo funciona y 
 | 1:40–2:05 | Laboratorio → medidores → subir PDF → Certificar. | "Paso 3: un laboratorio independiente sube resistencia, absorción y ciclos de calor-humedad, más la huella SHA-256 del informe. Si cumple, el contrato emite créditos ESCB: un ESCB por kilo de escombro desviado. La planta no puede certificarse a sí misma." |
 | 2:05–2:30 | Mercado → comprar → enviar → confirmar → retirar. | "Paso 4: la constructora compra con USDC en garantía. Al confirmar la entrega, la planta cobra y los ESCB de esos bloques pasan a la constructora, que los retira para reclamar su impacto. Retirar quema el crédito: nadie lo cuenta dos veces." |
 | 2:30–2:45 | Pasaporte con QR; escanearlo con el celular. | "Cada bloque lleva un QR con su pasaporte: ensayo, origen del escombro y a quién se le pagó." |
-| 2:45–3:00 | Diagrama de arquitectura / Stellar Expert. | "¿Por qué Stellar? Pagos de centavos que sí llegan, ESCB como activo real vía Stellar Asset Contract, y reglas en Soroban con 20 pruebas. Escomblock: el escombro de ayer es el bloque de mañana." |
+| 2:45–3:00 | Diagrama de arquitectura / Stellar Expert. | "¿Por qué Stellar? Pagos de centavos que sí llegan, ESCB como activo real vía Stellar Asset Contract, y reglas en Soroban con 25 pruebas más pruebas de punta a punta en una red Stellar real. Escomblock: el escombro de ayer es el bloque de mañana." |
 
 ## Consejos de grabación
 
-- Antes de grabar pulsa **Reiniciar demo** para partir del mismo estado.
+- Prepara las cuentas antes de grabar: planta y laboratorio registrados, USDC y ESCB activados, saldo USDC en la planta y en la constructora.
 - Graba a 1280×800 o mayor; acerca el zoom del navegador al 110 % para que se lea bien.
-- Si usas testnet, abre la transacción en Stellar Expert al menos una vez: demuestra que es real.
+- Abre al menos una transacción en Stellar Expert desde el aviso de la app: demuestra que es real.
 - Subtítulos en español e inglés amplían el público del jurado del General Track.
 
 ## Versión corta en inglés (General Track, 60 s)

@@ -1,8 +1,9 @@
-import { TxLink, useApp } from '../components/ui'
+import { Empty, TxLink, useApp } from '../components/ui'
+import { NETWORK } from '../lib/config'
 import { fmtDateTime, fmtInt, fmtUsdc } from '../lib/format'
 
 export default function Home() {
-  const { snap, api, go } = useApp()
+  const { snap, go } = useApp()
   const st = snap.stats
   const collectors = new Set(snap.deliveries.map((d) => d.collector)).size
 
@@ -22,7 +23,7 @@ export default function Home() {
             <button className="btn primary" onClick={() => go('planta')}>
               Registrar una entrega
             </button>
-            <button className="btn ghost" onClick={() => go('pasaporte-1')}>
+            <button className="btn ghost" onClick={() => go('pasaporte')}>
               Ver un pasaporte de bloque
             </button>
           </div>
@@ -44,7 +45,7 @@ export default function Home() {
             {fmtInt(st.usdcPaid)}
             <small>USDC</small>
           </span>
-          <span className="muted">{collectors} personas, pago al instante</span>
+          <span className="muted">{collectors} {collectors === 1 ? 'persona' : 'personas'}, pago al instante</span>
         </div>
         <div className="kpi">
           <span className="label">Bloques certificados</span>
@@ -109,10 +110,9 @@ export default function Home() {
         <div className="panel">
           <h3>Actividad reciente</h3>
           <p className="muted" style={{ marginBottom: 8 }}>
-            {api.mode === 'demo'
-              ? 'Simulación local con las mismas reglas que los contratos.'
-              : 'Leído de los contratos en Stellar testnet.'}
+            Leído directamente de los contratos en {NETWORK.label}.
           </p>
+          {snap.activity.length === 0 && <Empty>Todavía no hay movimientos registrados.</Empty>}
           <ul className="feed">
             {snap.activity.slice(0, 8).map((a) => (
               <li key={a.id}>
@@ -121,7 +121,7 @@ export default function Home() {
                   {a.text}
                   {a.txHash && (
                     <span className="hash">
-                      <TxLink hash={a.txHash} mode={api.mode} />
+                      <TxLink hash={a.txHash} />
                     </span>
                   )}
                 </span>

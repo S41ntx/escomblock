@@ -58,8 +58,7 @@ export default function Collectors() {
         <h3>Mis boletas</h3>
         {mine.length === 0 ? (
           <Empty>
-            Tu cuenta no tiene entregas. En la demo, elige el actor “Guadalupe R. · recolectora” para ver su
-            historial.
+            {me ? 'Tu cuenta aún no tiene entregas registradas.' : 'Conecta tu wallet para ver tus boletas y pagos.'}
           </Empty>
         ) : (
           <div className="table-wrap">

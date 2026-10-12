@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import * as freighter from '@stellar/freighter-api'
 import { Ctx, TxLink, type AppCtx } from './components/ui'
-import { FORCE_DEMO, LIVE_AVAILABLE, NETWORK } from './lib/config'
-import { ACTORS, DemoApi } from './lib/demo'
+import { CONTRACTS, MISSING, NETWORK } from './lib/config'
 import { fmtEscb, fmtUsdc, shortAddr } from './lib/format'
 import { SorobanApi, connectFreighter } from './lib/soroban'
-import type { Api, Mode, Snapshot, TxResult } from './lib/types'
+import type { Snapshot, TxResult } from './lib/types'
 import Collectors from './views/Collectors'
 import Home from './views/Home'
 import Lab from './views/Lab'
@@ -18,7 +18,7 @@ const TABS: [string, string][] = [
   ['laboratorio', 'Laboratorio'],
   ['mercado', 'Mercado'],
   ['recolectores', 'Recolectores'],
-  ['pasaporte-1', 'Pasaporte'],
+  ['pasaporte', 'Pasaporte'],
 ]
 
 const readRoute = () => location.hash.replace(/^#/, '') || 'inicio'
@@ -30,16 +30,73 @@ interface Toast {
 }
 
 export default function App() {
+  if (MISSING.length) return <Setup />
+  return <Live />
+}
+
+function Setup() {
+  return (
+    <>
+      <Header route="" />
+      <main>
+        <section className="panel stack">
+          <h2 className="section">Configuración pendiente</h2>
+          <p>
+            Esta compilación no sabe a qué contratos conectarse. Despliega los contratos con{' '}
+            <span className="mono">scripts/deploy.sh</span> y vuelve a compilar con estas variables:
+          </p>
+          <ul className="mono">
+            {MISSING.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+          <p className="muted">Ver app/.env.example y docs/DEPLOY.md en el repositorio.</p>
+        </section>
+      </main>
+    </>
+  )
+}
+
+function Header({ route }: { route: string }) {
+  return (
+    <header className="top">
+      <div className="tape" />
+      <div className="top-inner">
+        <a className="wordmark" href="#inicio">
+          <span className="brick" aria-hidden="true" />
+          ESCOMBLOCK
+        </a>
+        <nav className="tabs" aria-label="Secciones">
+          {TABS.map(([key, label]) => (
+            <a key={key} href={`#${key}`} aria-current={route === key ? 'page' : undefined}>
+              {label}
+            </a>
+          ))}
+        </nav>
+        <div className="who">
+          <a
+            className={`mode ${NETWORK.name === 'mainnet' ? 'live' : ''}`}
+            href={`${NETWORK.explorer}/contract/${CONTRACTS.core}`}
+            target="_blank"
+            rel="noreferrer"
+            title="Ver el contrato en el explorador"
+          >
+            ● {NETWORK.label}
+          </a>
+        </div>
+      </div>
+    </header>
+  )
+}
+
+function Live() {
   const [route, setRoute] = useState(readRoute)
-  const [mode, setMode] = useState<Mode>(LIVE_AVAILABLE && !FORCE_DEMO ? 'testnet' : 'demo')
   const [wallet, setWallet] = useState<string | null>(null)
-  const demo = useMemo(() => new DemoApi(), [])
-  const api: Api = useMemo(() => (mode === 'demo' ? demo : new SorobanApi(wallet)), [mode, wallet, demo])
+  const api = useMemo(() => new SorobanApi(wallet), [wallet])
   const [snap, setSnap] = useState<Snapshot | null>(null)
   const [loadError, setLoadError] = useState('')
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState<Toast | null>(null)
-  const [actor, setActor] = useState(demo.actor.key)
 
   useEffect(() => {
     const on = () => {
@@ -48,6 +105,17 @@ export default function App() {
     }
     window.addEventListener('hashchange', on)
     return () => window.removeEventListener('hashchange', on)
+  }, [])
+
+  // Reconnect silently if this site was already allowed in Freighter.
+  useEffect(() => {
+    freighter
+      .isAllowed()
+      .then((r) => (r.isAllowed ? freighter.getAddress() : null))
+      .then((r) => {
+        if (r && !r.error && r.address) setWallet(r.address)
+      })
+      .catch(() => undefined)
   }, [])
 
   const refresh = useCallback(async () => {
@@ -61,11 +129,13 @@ export default function App() {
 
   useEffect(() => {
     refresh()
-  }, [refresh, actor])
+    const t = setInterval(refresh, 30_000)
+    return () => clearInterval(t)
+  }, [refresh])
 
   useEffect(() => {
     if (!toast) return
-    const t = setTimeout(() => setToast(null), toast.error ? 7000 : 5500)
+    const t = setTimeout(() => setToast(null), toast.error ? 8000 : 6000)
     return () => clearTimeout(t)
   }, [toast])
 
@@ -99,12 +169,13 @@ export default function App() {
     }
   }
 
-  const passportId = route.startsWith('pasaporte-') ? Number(route.slice(10)) || 1 : 0
-  const tabKey = passportId ? 'pasaporte-1' : route
+  const passportId = route.startsWith('pasaporte') ? Number(route.split('-')[1]) || 0 : -1
+  const tabKey = passportId >= 0 ? 'pasaporte' : route
+  const acct = snap?.account
 
   let view: React.ReactNode = null
   if (snap) {
-    if (passportId) view = <Passport id={passportId} />
+    if (passportId >= 0) view = <Passport id={passportId || snap.batches.at(-1)?.id || 0} />
     else if (route === 'planta') view = <Plant />
     else if (route === 'laboratorio') view = <Lab />
     else if (route === 'mercado') view = <Market />
@@ -114,127 +185,110 @@ export default function App() {
 
   return (
     <>
-      <header className="top">
-        <div className="tape" />
-        <div className="top-inner">
-          <a className="wordmark" href="#inicio">
-            <span className="brick" aria-hidden="true" />
-            ESCOMBLOCK
-          </a>
-          <nav className="tabs" aria-label="Secciones">
-            {TABS.map(([key, label]) => (
-              <a key={key} href={`#${key}`} aria-current={tabKey === key ? 'page' : undefined}>
-                {label}
-              </a>
-            ))}
-          </nav>
-          <div className="who">
-            {LIVE_AVAILABLE && !FORCE_DEMO ? (
-              <button
-                className={`mode ${mode === 'testnet' ? 'live' : ''}`}
-                onClick={() => setMode(mode === 'demo' ? 'testnet' : 'demo')}
-                title="Cambiar entre demostración y Stellar testnet"
-              >
-                {mode === 'testnet' ? `● Stellar ${NETWORK.name}` : '○ Demo local'}
-              </button>
-            ) : (
-              <span className="mode">Demo · reglas de los contratos</span>
-            )}
-          </div>
-        </div>
-      </header>
-
+      <Header route={tabKey} />
       <main>
         <div className="walletbar">
-          {mode === 'demo' ? (
-            <div className="stack" style={{ gap: 6 }}>
-              <span className="label">Actuar como</span>
-              <div className="actor-pick">
-                {ACTORS.map((a) => (
-                  <button
-                    key={a.key}
-                    aria-pressed={actor === a.key}
-                    title={a.blurb}
-                    onClick={() => {
-                      demo.setActor(a.key)
-                      setActor(a.key)
-                    }}
-                  >
-                    {a.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : wallet ? (
+          {wallet ? (
             <div className="bal">
-              <span className="label">Wallet Freighter</span>
-              <strong className="mono">{shortAddr(wallet)}</strong>
+              <span className="label">Wallet</span>
+              <a className="addr" href={`${NETWORK.explorer}/account/${wallet}`} target="_blank" rel="noreferrer">
+                <strong className="mono">{shortAddr(wallet)}</strong>
+              </a>
             </div>
           ) : (
-            <button className="btn primary" onClick={connect}>
-              Conectar Freighter
-            </button>
+            <div className="stack" style={{ gap: 4 }}>
+              <button className="btn primary" onClick={connect}>
+                Conectar wallet
+              </button>
+              <span className="muted" style={{ fontSize: 12 }}>
+                Puedes consultar todo sin wallet. Para operar usa Freighter.
+              </span>
+            </div>
           )}
           <span className="spacer" />
-          {snap?.account && (
+          {acct && (
             <>
               <div className="bal">
                 <span className="label">USDC</span>
-                <strong>{fmtUsdc(snap.account.usdc).replace(' USDC', '')}</strong>
+                <strong>{acct.trust.usdc ? fmtUsdc(acct.usdc).replace(' USDC', '') : '—'}</strong>
               </div>
               <div className="bal">
                 <span className="label">ESCB</span>
-                <strong>{fmtEscb(snap.account.escb).replace(' ESCB', '')}</strong>
+                <strong>{acct.trust.escb ? fmtEscb(acct.escb).replace(' ESCB', '') : '—'}</strong>
               </div>
               <div className="bal">
                 <span className="label">Rol</span>
                 <strong style={{ fontSize: 14 }}>
-                  {snap.account.roles.includes('Plant')
+                  {acct.roles.includes('Plant')
                     ? 'Planta'
-                    : snap.account.roles.includes('Lab')
+                    : acct.roles.includes('Lab')
                       ? 'Laboratorio'
-                      : 'Comprador / recolector'}
+                      : 'Recolector / comprador'}
                 </strong>
               </div>
+              {acct.funded && (!acct.trust.usdc || !acct.trust.escb) && (
+                <div className="btns">
+                  {!acct.trust.usdc && (
+                    <button
+                      className="btn small"
+                      disabled={busy}
+                      onClick={() => run(() => api.trust('usdc'), () => 'USDC activado: ya puedes recibir pagos.')}
+                    >
+                      Activar USDC
+                    </button>
+                  )}
+                  {!acct.trust.escb && (
+                    <button
+                      className="btn small ghost"
+                      disabled={busy}
+                      onClick={() => run(() => api.trust('escb'), () => 'ESCB activado: ya puedes recibir créditos.')}
+                    >
+                      Activar ESCB
+                    </button>
+                  )}
+                </div>
+              )}
             </>
-          )}
-          {mode === 'demo' && (
-            <button
-              className="btn small ghost"
-              onClick={() => {
-                demo.reset()
-                setActor(demo.actor.key)
-                refresh()
-                setToast({ text: 'Demo reiniciada con los datos de ejemplo.' })
-              }}
-            >
-              Reiniciar demo
-            </button>
           )}
         </div>
 
-        {loadError && (
-          <div className="empty" role="alert">
-            No se pudo leer la red: {loadError}
+        {acct && !acct.funded && (
+          <div className="notice" role="status">
+            Tu cuenta aún no existe en {NETWORK.label}. Envíale al menos 2 XLM desde un exchange o de otra wallet para
+            activarla; después podrás activar USDC y ESCB.
           </div>
         )}
-        {!snap && !loadError && <div className="empty">Leyendo contratos…</div>}
+        {snap && (snap.config.corePaused || snap.config.marketPaused) && (
+          <div className="notice" role="status">
+            {snap.config.corePaused ? 'El registro está en pausa por mantenimiento. ' : ''}
+            {snap.config.marketPaused ? 'El mercado no acepta compras ni publicaciones nuevas por ahora.' : ''}
+          </div>
+        )}
+        {loadError && (
+          <div className="empty" role="alert">
+            No se pudo leer la red ({NETWORK.rpcUrl}): {loadError}
+          </div>
+        )}
+        {!snap && !loadError && <div className="empty">Leyendo contratos en {NETWORK.label}…</div>}
         {snap && <Ctx.Provider value={{ api, snap, busy, run, go }}>{view}</Ctx.Provider>}
       </main>
 
       <footer>
-        <span>
-          Escomblock · proyecto estudiantil sobre escombro reciclado en mampostería · construido en Stellar + Soroban
+        <span>Escomblock · escombro reciclado en mampostería, trazado y pagado en Stellar</span>
+        <span className="btns">
+          <a href={`${NETWORK.explorer}/contract/${CONTRACTS.core}`} target="_blank" rel="noreferrer">
+            Contrato
+          </a>
+          <a href="https://github.com/S41ntx/escomblock" target="_blank" rel="noreferrer">
+            Código fuente
+          </a>
         </span>
-        <a href="https://github.com/S41ntx/escomblock" target="_blank" rel="noreferrer">
-          Código fuente
-        </a>
       </footer>
 
       {toast && (
         <div className={`toast ${toast.error ? 'error' : ''}`} role="status">
           <span>{toast.text}</span>
-          {toast.hash && <TxLink hash={toast.hash} mode={api.mode} />}
+          {toast.hash && <TxLink hash={toast.hash} />}
         </div>
       )}
     </>

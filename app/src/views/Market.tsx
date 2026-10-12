@@ -105,8 +105,7 @@ function MyOrders() {
       <h3>Mis compras</h3>
       {orders.length === 0 ? (
         <Empty>
-          Aún no compras bloques.
-          {snap.account?.roles.length ? ' Cambia al actor “Constructora del Desierto” para probar la compra.' : ''}
+          {snap.account ? 'Aún no compras bloques.' : 'Conecta tu wallet para comprar y ver tus pedidos.'}
         </Empty>
       ) : (
         <div className="table-wrap">
@@ -166,8 +165,8 @@ function MyOrders() {
 function Retire() {
   const { snap, api, run, busy } = useApp()
   const bal = snap.account?.escb ?? 0
-  const [amount, setAmount] = useState('1000')
-  const [who, setWho] = useState('Obra: Escuela primaria, Hermosillo')
+  const [amount, setAmount] = useState('')
+  const [who, setWho] = useState('')
   const n = Number(amount) || 0
   return (
     <section className="grid-2">
@@ -190,7 +189,7 @@ function Retire() {
           </div>
           <div className="field">
             <label htmlFor="ret-who">A nombre de</label>
-            <input id="ret-who" type="text" value={who} onChange={(e) => setWho(e.target.value)} />
+            <input id="ret-who" type="text" placeholder="Empresa, obra o persona" value={who} onChange={(e) => setWho(e.target.value)} />
           </div>
         </div>
         <button className="btn" disabled={busy || n <= 0 || n > bal || !who.trim()}>

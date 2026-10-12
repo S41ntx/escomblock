@@ -16,7 +16,7 @@
 
 use soroban_sdk::{
     contract, contractclient, contracterror, contractevent, contractimpl, contracttype,
-    panic_with_error, token::TokenClient, Address, Env,
+    panic_with_error, token::TokenClient, Address, BytesN, Env, Vec,
 };
 
 #[cfg(test)]
@@ -28,6 +28,7 @@ const RECORD_BUMP: u32 = 180 * DAY_LEDGERS;
 const BUMP_THRESHOLD: u32 = 7 * DAY_LEDGERS;
 const MAX_FEE_BPS: u32 = 1_000;
 const UNIT: i128 = 10_000_000;
+const MAX_PAGE: u32 = 50;
 
 /// Minimal view of the Escomblock core contract.
 #[allow(dead_code)]
@@ -53,6 +54,7 @@ pub enum Error {
     TooEarly = 11,
     InvalidParams = 12,
     SelfPurchase = 13,
+    Paused = 14,
 }
 
 #[contracttype]
@@ -109,6 +111,7 @@ pub struct Order {
 #[derive(Clone)]
 enum DataKey {
     Config,
+    Paused,
     NextListing,
     NextOrder,
     Listing(u64),
@@ -183,9 +186,40 @@ impl Market {
         env.storage().instance().set(&DataKey::Config, &c);
     }
 
+    pub fn set_admin(env: Env, new_admin: Address) {
+        let mut c = Self::config(env.clone());
+        c.admin.require_auth();
+        c.admin = new_admin;
+        env.storage().instance().set(&DataKey::Config, &c);
+    }
+
+    /// Emergency stop for new listings and purchases. Open orders can still
+    /// be shipped, confirmed, claimed or cancelled, and listings closed, so
+    /// nobody's funds get stuck.
+    pub fn set_paused(env: Env, paused: bool) {
+        Self::config(env.clone()).admin.require_auth();
+        env.storage().instance().set(&DataKey::Paused, &paused);
+    }
+
+    pub fn paused(env: Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
+    }
+
+    /// Replaces the contract code, keeping its address and storage.
+    pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {
+        Self::config(env.clone()).admin.require_auth();
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+    }
+
     /// Lists `qty` blocks of a certified batch and escrows their ESCB credits.
     pub fn list(env: Env, seller: Address, batch_id: u64, qty: u32, price_per_block: i128) -> u64 {
         seller.require_auth();
+        if Self::paused(env.clone()) {
+            panic_with_error!(&env, Error::Paused);
+        }
         if qty == 0 || price_per_block <= 0 {
             panic_with_error!(&env, Error::InvalidAmount);
         }
@@ -271,6 +305,9 @@ impl Market {
     /// Buys `qty` blocks; the USDC total is held in escrow.
     pub fn buy(env: Env, buyer: Address, listing_id: u64, qty: u32) -> u64 {
         buyer.require_auth();
+        if Self::paused(env.clone()) {
+            panic_with_error!(&env, Error::Paused);
+        }
         let mut listing = Self::listing(env.clone(), listing_id);
         if !listing.active {
             panic_with_error!(&env, Error::ListingClosed);
@@ -414,6 +451,28 @@ impl Market {
             .unwrap_or_else(|| panic_with_error!(&env, Error::OrderNotFound))
     }
 
+    /// Listings with ids `start..start + limit` (ids start at 1).
+    pub fn listings(env: Env, start: u64, limit: u32) -> Vec<Listing> {
+        let mut out = Vec::new(&env);
+        for id in page(&env, start, limit, DataKey::NextListing) {
+            if let Some(l) = env.storage().persistent().get(&DataKey::Listing(id)) {
+                out.push_back(l);
+            }
+        }
+        out
+    }
+
+    /// Orders with ids `start..start + limit`.
+    pub fn orders(env: Env, start: u64, limit: u32) -> Vec<Order> {
+        let mut out = Vec::new(&env);
+        for id in page(&env, start, limit, DataKey::NextOrder) {
+            if let Some(o) = env.storage().persistent().get(&DataKey::Order(id)) {
+                out.push_back(o);
+            }
+        }
+        out
+    }
+
     /// (listings, orders) created so far; ids run from 1 to these values.
     pub fn counts(env: Env) -> (u64, u64) {
         let s = env.storage().instance();
@@ -422,6 +481,16 @@ impl Market {
             s.get(&DataKey::NextOrder).unwrap_or(0),
         )
     }
+}
+
+fn page(env: &Env, start: u64, limit: u32, counter: DataKey) -> core::ops::Range<u64> {
+    let last: u64 = env.storage().instance().get(&counter).unwrap_or(0);
+    let first = start.max(1);
+    let limit = limit.min(MAX_PAGE) as u64;
+    if limit == 0 || first > last {
+        return 0..0;
+    }
+    first..(last + 1).min(first + limit)
 }
 
 fn settle(env: &Env, mut order: Order) {

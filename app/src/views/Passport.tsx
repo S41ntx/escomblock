@@ -5,7 +5,7 @@ import { CONTRACTS, NETWORK } from '../lib/config'
 import { fmtDate, fmtEscb, fmtInt, fmtKg, fmtMpa, fmtPct, fmtUsdc } from '../lib/format'
 
 export default function Passport({ id }: { id: number }) {
-  const { snap, api, go } = useApp()
+  const { snap, go } = useApp()
   const batch = snap.batches.find((b) => b.id === id)
   const [qr, setQr] = useState('')
   const url = `${location.origin}${location.pathname}#pasaporte-${id}`
@@ -35,7 +35,7 @@ export default function Passport({ id }: { id: number }) {
     return (
       <section>
         <SectionHead title="Pasaporte de bloque">{picker}</SectionHead>
-        <Empty>No existe el lote #{id}.</Empty>
+        <Empty>{id ? `No existe el lote #${id}.` : 'Aún no hay lotes registrados.'}</Empty>
       </section>
     )
 
@@ -159,15 +159,9 @@ export default function Passport({ id }: { id: number }) {
           <p className="muted" style={{ fontSize: 13 }}>
             Este código va impreso en cada bloque del lote y abre este pasaporte.
           </p>
-          {api.mode === 'testnet' ? (
-            <a href={`${NETWORK.explorer}/contract/${CONTRACTS.core}`} target="_blank" rel="noreferrer">
-              Ver contrato en Stellar Expert
-            </a>
-          ) : (
-            <span className="mono muted" style={{ fontSize: 11 }}>
-              datos de demostración
-            </span>
-          )}
+          <a href={`${NETWORK.explorer}/contract/${CONTRACTS.core}`} target="_blank" rel="noreferrer">
+            Verificar en el explorador de Stellar
+          </a>
         </aside>
       </article>
     </section>

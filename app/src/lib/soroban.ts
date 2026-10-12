@@ -1,12 +1,11 @@
-// Live mode: talks to the deployed Escomblock contracts on Stellar through
-// Soroban RPC, signing with the Freighter wallet.
-import { contract } from '@stellar/stellar-sdk'
+// Talks to the deployed Escomblock contracts through Soroban RPC and signs
+// with the Freighter wallet. Reads need no wallet (simulation only).
+import { Asset, BASE_FEE, Operation, TransactionBuilder, contract, rpc } from '@stellar/stellar-sdk'
 import * as freighter from '@stellar/freighter-api'
-import { CONTRACTS, NETWORK } from './config'
+import { ASSETS, CONTRACTS, NETWORK } from './config'
 import type {
   Account,
   Activity,
-  Api,
   Batch,
   BatchStatus,
   Certification,
@@ -23,16 +22,18 @@ import type {
 } from './types'
 
 const UNIT = 10_000_000
-const MAX_RECORDS = 40
+/** Records per collection shown in the app; one RPC call each (contract max 50). */
+const PAGE = 50
 
 type Dyn = any
 
-const toNum = (v: bigint | number | undefined) => Number(v ?? 0)
-const toAmount = (v: bigint | number | undefined) => Number(v ?? 0) / UNIT
+const toNum = (v: bigint | number | string | undefined) => Number(v ?? 0)
+const toAmount = (v: bigint | number | string | undefined) => Number(v ?? 0) / UNIT
 const toStroops = (n: number) => BigInt(Math.round(n * UNIT))
 const tag = (v: Dyn): string => (typeof v === 'string' ? v : v?.tag)
 const hex = (b: Dyn): string =>
   b ? [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('') : ''
+const lastPage = (n: number) => Math.max(1, n - PAGE + 1)
 
 const CORE_ERRORS: Record<number, string> = {
   1: 'Tu cuenta no está registrada como planta.',
@@ -47,6 +48,7 @@ const CORE_ERRORS: Record<number, string> = {
   10: 'Máximo 50 entregas por lote.',
   11: 'Ese retiro no existe.',
   12: 'Parámetros inválidos (¿el recolector es la misma planta?).',
+  13: 'El registro está en pausa por mantenimiento.',
 }
 const MARKET_ERRORS: Record<number, string> = {
   1: 'Solo se pueden vender lotes certificados.',
@@ -62,34 +64,41 @@ const MARKET_ERRORS: Record<number, string> = {
   11: 'Aún no vence el plazo para reclamar.',
   12: 'Parámetros inválidos.',
   13: 'No puedes comprar tus propios bloques.',
+  14: 'El mercado está en pausa por mantenimiento.',
 }
 
 function explain(err: unknown, table: Record<number, string>): Error {
   const msg = err instanceof Error ? err.message : String(err)
   const m = msg.match(/Error\(Contract, #(\d+)\)/)
   if (m && table[Number(m[1])]) return new Error(table[Number(m[1])])
-  if (/insufficient|balance|resulting balance/i.test(msg))
-    return new Error('Saldo insuficiente o falta trustline del activo.')
-  if (/User declined|rejected/i.test(msg)) return new Error('Firma cancelada en Freighter.')
+  if (/trustline|TrustLine|#13\b.*balance|missing.*trust/i.test(msg))
+    return new Error('Una de las cuentas no tiene activado el activo (trustline). Actívalo desde la barra de wallet.')
+  if (/insufficient|resulting balance|BalanceError/i.test(msg))
+    return new Error('Saldo insuficiente.')
+  if (/User declined|rejected|denied/i.test(msg)) return new Error('Firma cancelada en la wallet.')
+  if (/Account not found/i.test(msg))
+    return new Error('Tu cuenta aún no existe en la red: deposítale algunos XLM primero.')
   return new Error(msg.split('\n')[0].slice(0, 220))
 }
 
 export async function connectFreighter(): Promise<string> {
   const conn = await freighter.isConnected()
-  if (!conn.isConnected) throw new Error('Instala la extensión Freighter para firmar en testnet.')
+  if (!conn.isConnected) throw new Error('Instala la extensión Freighter (freighter.app) para firmar.')
   const access = await freighter.requestAccess()
   if (access.error) throw new Error(access.error.message ?? 'Freighter rechazó la conexión.')
   const net = await freighter.getNetworkDetails()
   if (!net.error && net.networkPassphrase && net.networkPassphrase !== NETWORK.passphrase)
-    throw new Error(`Cambia Freighter a la red ${NETWORK.name}.`)
+    throw new Error(`Cambia Freighter a la red ${NETWORK.name === 'mainnet' ? 'Mainnet (Public)' : 'Testnet'}.`)
   return access.address
 }
 
-export class SorobanApi implements Api {
-  mode = 'testnet' as const
+export class SorobanApi {
+  network = NETWORK.name
+  address: string | null
+  private server = new rpc.Server(NETWORK.rpcUrl, { allowHttp: NETWORK.rpcUrl.startsWith('http://') })
   private clients: Record<string, Promise<Dyn>> = {}
   private session: Activity[] = []
-  address: string | null
+
   constructor(address: string | null) {
     this.address = address
   }
@@ -99,6 +108,7 @@ export class SorobanApi implements Api {
       this.clients[id] = contract.Client.from({
         contractId: id,
         rpcUrl: NETWORK.rpcUrl,
+        allowHttp: NETWORK.rpcUrl.startsWith('http://'),
         networkPassphrase: NETWORK.passphrase,
         publicKey: this.address ?? undefined,
         signTransaction: (xdr: string, opts?: Dyn) =>
@@ -117,6 +127,16 @@ export class SorobanApi implements Api {
     return tx.result as T
   }
 
+  private log(kind: Activity['kind'], text: string, hash: string) {
+    this.session.unshift({
+      id: hash || String(Date.now()),
+      kind,
+      text,
+      timestamp: Math.floor(Date.now() / 1000),
+      txHash: hash,
+    })
+  }
+
   private async write(
     id: string,
     method: string,
@@ -132,16 +152,49 @@ export class SorobanApi implements Api {
       const hash: string =
         sent.sendTransactionResponse?.hash ?? sent.getTransactionResponse?.txHash ?? ''
       const d = describe(sent.result)
-      this.session.unshift({
-        id: hash || String(Date.now()),
-        kind: d.kind,
-        text: d.text,
-        timestamp: Math.floor(Date.now() / 1000),
-        txHash: hash,
-      })
+      this.log(d.kind, d.text, hash)
       return { hash, id: d.id, passed: d.passed }
     } catch (err) {
       throw explain(err, table)
+    }
+  }
+
+  // ------------------------------------------------------------ wallet
+
+  /** Adds a trustline so the connected account can hold `which`. */
+  async trust(which: 'usdc' | 'escb'): Promise<TxResult> {
+    const asset: Asset | null = ASSETS[which]
+    if (!this.address || !asset) throw new Error('Conecta tu wallet Freighter primero.')
+    try {
+      const account = await this.server.getAccount(this.address)
+      const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: NETWORK.passphrase })
+        .addOperation(Operation.changeTrust({ asset }))
+        .setTimeout(180)
+        .build()
+      const signed = await freighter.signTransaction(tx.toXDR(), {
+        networkPassphrase: NETWORK.passphrase,
+        address: this.address,
+      })
+      if (signed.error) throw new Error(signed.error.message ?? 'Firma cancelada en la wallet.')
+      const ready = TransactionBuilder.fromXDR(signed.signedTxXdr, NETWORK.passphrase)
+      const sent = await this.server.sendTransaction(ready)
+      if (sent.status === 'ERROR') throw new Error('La red rechazó la transacción.')
+      const done = await this.server.pollTransaction(sent.hash, { attempts: 30 })
+      if (done.status !== 'SUCCESS') throw new Error('La transacción no se confirmó.')
+      this.log('info', `${asset.getCode()} activado en tu wallet`, sent.hash)
+      return { hash: sent.hash }
+    } catch (err) {
+      throw explain(err, CORE_ERRORS)
+    }
+  }
+
+  private async balance(asset: Asset | null, address: string): Promise<{ amount: number; trusted: boolean }> {
+    if (!asset) return { amount: 0, trusted: false }
+    try {
+      const res = await this.server.getAssetBalance(address, asset, NETWORK.passphrase)
+      return { amount: toAmount(res.balanceEntry?.amount), trusted: Boolean(res.balanceEntry) }
+    } catch {
+      return { amount: 0, trusted: false }
     }
   }
 
@@ -150,50 +203,57 @@ export class SorobanApi implements Api {
   async snapshot(): Promise<Snapshot> {
     const core = CONTRACTS.core
     const market = CONTRACTS.market
-    const [rawCfg, rawStats, counts, mcfg, mcounts] = await Promise.all([
+    const [rawCfg, rawStats, counts, mcfg, mcounts, corePaused, marketPaused] = await Promise.all([
       this.read<Dyn>(core, 'config'),
       this.read<Dyn>(core, 'stats'),
       this.read<[bigint, bigint, bigint]>(core, 'counts'),
       this.read<Dyn>(market, 'config'),
       this.read<[bigint, bigint]>(market, 'counts'),
+      this.read<boolean>(core, 'paused'),
+      this.read<boolean>(market, 'paused'),
     ])
     const [nDel, nBatch, nRet] = counts.map(toNum)
     const [nList, nOrd] = mcounts.map(toNum)
-    const ids = (n: number) => {
-      const out: number[] = []
-      for (let i = n; i >= 1 && out.length < MAX_RECORDS; i--) out.push(i)
-      return out
-    }
+    const pageArgs = (n: number) => ({ start: BigInt(lastPage(n)), limit: PAGE })
+    const none = Promise.resolve([] as Dyn[])
 
-    const [deliveries, batches, listings, orders, retirements] = await Promise.all([
-      Promise.all(ids(nDel).map((id) => this.read<Dyn>(core, 'delivery', { id }).then(mapDelivery))),
-      Promise.all(
-        ids(nBatch).map(async (id) => {
-          const [b, cert] = await Promise.all([
-            this.read<Dyn>(core, 'batch', { id }),
-            this.read<Dyn>(core, 'certification', { batch_id: id }),
-          ])
-          return mapBatch(b, cert)
-        }),
-      ),
-      Promise.all(ids(nList).map((id) => this.read<Dyn>(market, 'listing', { id }).then(mapListing))),
-      Promise.all(ids(nOrd).map((id) => this.read<Dyn>(market, 'order', { id }).then(mapOrder))),
-      Promise.all(ids(nRet).map((id) => this.read<Dyn>(core, 'retirement', { id }).then(mapRetirement))),
+    const [rawDeliveries, rawBatches, rawListings, rawOrders, rawRetirements] = await Promise.all([
+      nDel ? this.read<Dyn[]>(core, 'deliveries', pageArgs(nDel)) : none,
+      nBatch ? this.read<Dyn[]>(core, 'batches', pageArgs(nBatch)) : none,
+      nList ? this.read<Dyn[]>(market, 'listings', pageArgs(nList)) : none,
+      nOrd ? this.read<Dyn[]>(market, 'orders', pageArgs(nOrd)) : none,
+      nRet ? this.read<Dyn[]>(core, 'retirements', pageArgs(nRet)) : none,
     ])
+    const deliveries = rawDeliveries.map(mapDelivery)
+    const batches = rawBatches.map((v) => mapBatch(v.batch, v.certification?.[0]))
+    const listings = rawListings.map(mapListing)
+    const orders = rawOrders.map(mapOrder)
+    const retirements = rawRetirements.map(mapRetirement)
 
     let account: Account | null = null
     if (this.address) {
       const a = this.address
-      const [usdc, escb, isPlant, isLab] = await Promise.all([
-        this.read<bigint>(CONTRACTS.usdc, 'balance', { id: a }).catch(() => 0n),
-        this.read<bigint>(CONTRACTS.escb, 'balance', { id: a }).catch(() => 0n),
+      const [usdc, escb, isPlant, isLab, funded] = await Promise.all([
+        this.balance(ASSETS.usdc, a),
+        this.balance(ASSETS.escb, a),
         this.read<boolean>(core, 'has_role', { account: a, role: { tag: 'Plant', values: undefined } }),
         this.read<boolean>(core, 'has_role', { account: a, role: { tag: 'Lab', values: undefined } }),
+        this.server.getAccount(a).then(
+          () => true,
+          () => false,
+        ),
       ])
       const roles: Role[] = []
       if (isPlant) roles.push('Plant')
       if (isLab) roles.push('Lab')
-      account = { address: a, name: 'Tu wallet', roles, usdc: toAmount(usdc), escb: toAmount(escb) }
+      account = {
+        address: a,
+        roles,
+        funded,
+        usdc: usdc.amount,
+        escb: escb.amount,
+        trust: { usdc: usdc.trusted, escb: escb.trusted },
+      }
     }
 
     const config: Config = {
@@ -206,6 +266,8 @@ export class SorobanApi implements Api {
       },
       feeBps: toNum(mcfg.fee_bps),
       claimAfterDays: toNum(mcfg.claim_after) / 86_400,
+      corePaused,
+      marketPaused,
     }
     const stats: Stats = {
       deliveries: toNum(rawStats.deliveries),
@@ -222,11 +284,11 @@ export class SorobanApi implements Api {
     return {
       config,
       stats,
-      deliveries: deliveries.reverse(),
-      batches: batches.reverse(),
-      listings: listings.reverse(),
-      orders: orders.reverse(),
-      retirements: retirements.reverse(),
+      deliveries,
+      batches,
+      listings,
+      orders,
+      retirements,
       activity: [...this.session, ...historyFrom(deliveries, batches, orders, retirements)].slice(0, 60),
       account,
     }

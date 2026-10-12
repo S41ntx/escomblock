@@ -1,25 +1,72 @@
-// Deployment settings for live mode. Filled in by scripts/deploy-testnet.sh
-// (writes app/.env.local). Without a core contract id the app runs in demo mode.
+// Network and contract settings, read at build time from VITE_* variables
+// (see app/.env.example; scripts/deploy.sh writes app/.env.production.local).
+import { Asset, Networks } from '@stellar/stellar-sdk'
+
+type NetworkName = 'mainnet' | 'testnet' | 'local'
+
+const PRESETS: Record<NetworkName, { passphrase: string; rpcUrl: string; explorer: string; usdc: string }> = {
+  mainnet: {
+    passphrase: Networks.PUBLIC,
+    // SDF runs no public mainnet RPC: set VITE_RPC_URL to your provider.
+    rpcUrl: '',
+    explorer: 'https://stellar.expert/explorer/public',
+    // Circle USDC
+    usdc: 'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+  },
+  testnet: {
+    passphrase: Networks.TESTNET,
+    rpcUrl: 'https://soroban-testnet.stellar.org',
+    explorer: 'https://stellar.expert/explorer/testnet',
+    // Circle testnet USDC
+    usdc: 'USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+  },
+  // Development only: `stellar container start local` / stellar/quickstart --local
+  local: {
+    passphrase: Networks.STANDALONE,
+    rpcUrl: 'http://localhost:8000/rpc',
+    explorer: 'http://localhost:8000',
+    usdc: '',
+  },
+}
+
 const env = import.meta.env
+const name: NetworkName = env.VITE_NETWORK === 'testnet' || env.VITE_NETWORK === 'local' ? env.VITE_NETWORK : 'mainnet'
+const preset = PRESETS[name]
+
+function parseAsset(spec: string): Asset | null {
+  const [code, issuer] = spec.split(':')
+  try {
+    return code && issuer ? new Asset(code, issuer) : null
+  } catch {
+    return null
+  }
+}
 
 export const NETWORK = {
-  name: (env.VITE_NETWORK as string) || 'testnet',
-  rpcUrl: (env.VITE_RPC_URL as string) || 'https://soroban-testnet.stellar.org',
-  passphrase:
-    (env.VITE_NETWORK_PASSPHRASE as string) || 'Test SDF Network ; September 2015',
-  explorer: (env.VITE_EXPLORER as string) || 'https://stellar.expert/explorer/testnet',
+  name,
+  label: { mainnet: 'Stellar', testnet: 'Stellar testnet', local: 'red local' }[name],
+  passphrase: preset.passphrase,
+  rpcUrl: (env.VITE_RPC_URL as string) || preset.rpcUrl,
+  explorer: preset.explorer,
+}
+
+export const ASSETS = {
+  usdc: parseAsset((env.VITE_USDC_ASSET as string) || preset.usdc),
+  escb: parseAsset((env.VITE_ESCB_ASSET as string) || ''),
 }
 
 export const CONTRACTS = {
   core: (env.VITE_CORE_ID as string) || '',
   market: (env.VITE_MARKET_ID as string) || '',
-  usdc: (env.VITE_USDC_ID as string) || '',
-  escb: (env.VITE_ESCB_ID as string) || '',
+  usdc: ASSETS.usdc ? ASSETS.usdc.contractId(NETWORK.passphrase) : '',
+  escb: ASSETS.escb ? ASSETS.escb.contractId(NETWORK.passphrase) : '',
 }
 
-export const LIVE_AVAILABLE = Boolean(
-  CONTRACTS.core && CONTRACTS.market && CONTRACTS.usdc && CONTRACTS.escb,
-)
-
-/** Build-time flag: the single-file artifact build is always demo-only. */
-export const FORCE_DEMO = env.VITE_FORCE_DEMO === '1'
+/** Settings that are missing, by variable name. Empty when the app can run. */
+export const MISSING: string[] = [
+  !NETWORK.rpcUrl && 'VITE_RPC_URL',
+  !CONTRACTS.core && 'VITE_CORE_ID',
+  !CONTRACTS.market && 'VITE_MARKET_ID',
+  !ASSETS.escb && 'VITE_ESCB_ASSET',
+  !ASSETS.usdc && 'VITE_USDC_ASSET',
+].filter(Boolean) as string[]

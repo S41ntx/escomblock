@@ -1,11 +1,11 @@
 import { createContext, useContext } from 'react'
-import { nameOf } from '../lib/demo'
 import { NETWORK } from '../lib/config'
 import { shortAddr } from '../lib/format'
-import type { Api, BatchStatus, OrderStatus, Snapshot, TxResult } from '../lib/types'
+import type { SorobanApi } from '../lib/soroban'
+import type { BatchStatus, OrderStatus, Snapshot, TxResult } from '../lib/types'
 
 export interface AppCtx {
-  api: Api
+  api: SorobanApi
   snap: Snapshot
   busy: boolean
   run: (fn: () => Promise<TxResult>, ok: (r: TxResult) => string) => Promise<TxResult | undefined>
@@ -42,21 +42,19 @@ export function OrderPill({ status }: { status: OrderStatus }) {
 }
 
 export function Addr({ a, you }: { a: string; you?: string }) {
-  const name = a === you ? 'Tú' : nameOf(a)
   return (
-    <span title={a}>
-      {name ? `${name} ` : ''}
-      <span className="mono muted">{shortAddr(a)}</span>
-    </span>
+    <a className="addr" title={a} href={`${NETWORK.explorer}/account/${a}`} target="_blank" rel="noreferrer">
+      {a === you ? 'Tú ' : ''}
+      <span className="mono">{shortAddr(a)}</span>
+    </a>
   )
 }
 
-export function TxLink({ hash, mode }: { hash?: string; mode: Api['mode'] }) {
+export function TxLink({ hash }: { hash?: string }) {
   if (!hash) return null
-  if (mode === 'demo') return <span className="mono">tx simulada {hash.slice(0, 10)}…</span>
   return (
     <a className="mono" href={`${NETWORK.explorer}/tx/${hash}`} target="_blank" rel="noreferrer">
-      ver tx {hash.slice(0, 10)}… en Stellar Expert
+      ver transacción {hash.slice(0, 10)}…
     </a>
   )
 }
@@ -75,15 +73,15 @@ export function SectionHead({ title, children }: { title: string; children?: Rea
 }
 
 export function NeedRole({ role }: { role: 'Plant' | 'Lab' }) {
-  const { api } = useApp()
+  const { snap } = useApp()
   return (
     <Empty>
       {role === 'Plant'
         ? 'Esta vista es para plantas registradas. '
         : 'Esta vista es para laboratorios registrados. '}
-      {api.mode === 'demo'
-        ? `Cambia de actor arriba a “${role === 'Plant' ? 'Planta Escomblock Hermosillo' : 'Laboratorio de Materiales'}”.`
-        : 'Pide al administrador que registre tu cuenta con set_role.'}
+      {snap.account
+        ? 'Tu cuenta no tiene este rol: pide a Escomblock que la registre.'
+        : 'Conecta la wallet de tu planta o laboratorio.'}
     </Empty>
   )
 }

@@ -38,4 +38,42 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
-      - run: npm run build:artifact
+
+  # Deploys both contracts to a throwaway Stellar network in Docker with the
+  # real deploy script, then drives the app's Stellar layer through the whole
+  # flow (trustline, payout, batch, certification, sale, retirement).
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/stellar
+          key: stellar-cli-28.1.0-${{ runner.os }}
+      - name: Install stellar CLI
+        run: command -v stellar || cargo install --locked stellar-cli@28.1.0 --no-default-features
+      - name: Start local Stellar network
+        run: |
+          docker run -d --name stellar -p 8000:8000 stellar/quickstart:latest --local --enable-soroban-rpc
+          for i in $(seq 1 120); do
+            curl -sf "localhost:8000/friendbot?addr=GADZAN3K72UUWOHLNEO3H65UP37BFHIYCTHYIPNDJ6ZHNB7OC2WS3KXA" >/dev/null && exit 0
+            sleep 2
+          done
+          docker logs stellar | tail -50; exit 1
+      - run: ./scripts/deploy.sh local --seed
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - working-directory: app
+        run: |
+          npm ci
+          PLANT_SECRET=$(stellar keys show escomblock-plant) \
+          LAB_SECRET=$(stellar keys show escomblock-lab) \
+          BUILDER_SECRET=$(stellar keys show escomblock-builder) \
+          npm run test:it

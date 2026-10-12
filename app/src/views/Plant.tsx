@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { Addr, BatchPill, Empty, NeedRole, OrderPill, SectionHead, useApp } from '../components/ui'
-import { COLLECTORS } from '../lib/demo'
 import { fmtDate, fmtEscb, fmtInt, fmtKg, fmtUsdc } from '../lib/format'
 
 export default function Plant() {
@@ -32,11 +31,10 @@ export default function Plant() {
 
 function Scale() {
   const { snap, api, run, busy } = useApp()
-  const [collector, setCollector] = useState(COLLECTORS[0].address)
-  const [custom, setCustom] = useState('')
-  const [kg, setKg] = useState('4200')
-  const [origin, setOrigin] = useState('Demolición vivienda, Col. Centro')
-  const address = collector === 'other' ? custom.trim() : collector
+  const [address, setAddress] = useState('')
+  const [kg, setKg] = useState('')
+  const [origin, setOrigin] = useState('')
+  const validAddress = /^G[A-Z2-7]{55}$/.test(address.trim())
   const kgN = Math.floor(Number(kg) || 0)
   const payout = kgN * snap.config.pricePerKg
 
@@ -46,44 +44,37 @@ function Scale() {
       onSubmit={(e) => {
         e.preventDefault()
         run(
-          () => api.recordDelivery(address, kgN, origin.trim()),
+          () => api.recordDelivery(address.trim(), kgN, origin.trim()),
           (r) => `Entrega #${r.id} registrada. ${fmtUsdc(payout)} enviados al recolector.`,
         )
       }}
     >
       <h3>Boleta de báscula</h3>
       <div className="field">
-        <label htmlFor="collector">Recolector</label>
-        <select id="collector" value={collector} onChange={(e) => setCollector(e.target.value)}>
-          {api.mode === 'demo' &&
-            COLLECTORS.map((c) => (
-              <option key={c.address} value={c.address}>
-                {c.name} · {c.address.slice(0, 6)}…
-              </option>
-            ))}
-          <option value="other">Otra cuenta Stellar…</option>
-        </select>
-        {(collector === 'other' || api.mode !== 'demo') && (
-          <input
-            id="collector-address"
-            type="text"
-            placeholder="G… dirección del recolector"
-            value={custom}
-            onChange={(e) => {
-              setCustom(e.target.value)
-              setCollector('other')
-            }}
-          />
-        )}
+        <label htmlFor="collector">Cuenta Stellar del recolector</label>
+        <input
+          id="collector"
+          type="text"
+          placeholder="G…"
+          autoComplete="off"
+          spellCheck={false}
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+        />
+        <span className="hint">
+          {address && !validAddress
+            ? 'Debe ser una dirección pública que empieza con G (56 caracteres).'
+            : 'El recolector necesita USDC activado en su wallet para recibir el pago.'}
+        </span>
       </div>
       <div className="row">
         <div className="field">
           <label htmlFor="kg">Peso neto (kg)</label>
-          <input id="kg" type="number" min="1" step="1" value={kg} onChange={(e) => setKg(e.target.value)} />
+          <input id="kg" type="number" min="1" step="1" placeholder="0" value={kg} onChange={(e) => setKg(e.target.value)} />
         </div>
         <div className="field">
           <label htmlFor="origin">Origen</label>
-          <input id="origin" type="text" value={origin} onChange={(e) => setOrigin(e.target.value)} />
+          <input id="origin" type="text" placeholder="Obra, colonia, ciudad" value={origin} onChange={(e) => setOrigin(e.target.value)} />
         </div>
       </div>
       <div className="readout">
@@ -92,7 +83,7 @@ function Scale() {
         </span>
         <strong>{fmtUsdc(payout)}</strong>
       </div>
-      <button className="btn primary" disabled={busy || !kgN || !address}>
+      <button className="btn primary" disabled={busy || !kgN || !validAddress || !origin.trim()}>
         Registrar y pagar
       </button>
     </form>
@@ -118,7 +109,7 @@ function NewBatch() {
         run(
           () => api.createBatch(picked, blocksN, mix.trim()),
           (r) => `Lote #${r.id} creado. Ya puede ir al laboratorio.`,
-        ).then((r) => r && setPicked([]))
+        ).then((r) => r && (setPicked([]), setBlocks('')))
       }}
     >
       <h3>Nuevo lote de producción</h3>

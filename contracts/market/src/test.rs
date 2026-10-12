@@ -255,3 +255,37 @@ fn guards() {
         Err(Ok(e(Error::NotBuyer)))
     );
 }
+
+#[test]
+fn pause_stops_new_trades_but_lets_orders_finish() {
+    let t = setup(true);
+    let l = t.market.list(&t.plant, &t.batch_id, &100, &PRICE);
+    let o = t.market.buy(&t.buyer, &l, &10);
+    t.market.set_paused(&true);
+    assert_eq!(
+        t.market.try_buy(&t.buyer, &l, &1),
+        Err(Ok(e(Error::Paused)))
+    );
+    assert_eq!(
+        t.market.try_list(&t.plant, &t.batch_id, &1, &PRICE),
+        Err(Ok(e(Error::Paused)))
+    );
+    t.market.ship(&t.plant, &o);
+    t.market.confirm(&t.buyer, &o);
+    t.market.delist(&t.plant, &l);
+    assert_eq!(t.market.order(&o).status, OrderStatus::Completed);
+}
+
+#[test]
+fn paged_listings_and_orders() {
+    let t = setup(true);
+    let l1 = t.market.list(&t.plant, &t.batch_id, &100, &PRICE);
+    t.market.list(&t.plant, &t.batch_id, &100, &PRICE);
+    t.market.buy(&t.buyer, &l1, &5);
+    t.market.buy(&t.buyer, &l1, &6);
+    t.market.buy(&t.buyer, &l1, &7);
+    assert_eq!(t.market.listings(&1, &10).len(), 2);
+    let orders = t.market.orders(&2, &10);
+    assert_eq!(orders.len(), 2);
+    assert_eq!(orders.get(0).unwrap().qty, 6);
+}

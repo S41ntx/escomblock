@@ -36,6 +36,8 @@ const INSTANCE_BUMP: u32 = 30 * DAY_LEDGERS;
 const RECORD_BUMP: u32 = 180 * DAY_LEDGERS;
 const BUMP_THRESHOLD: u32 = 7 * DAY_LEDGERS;
 const MAX_DELIVERIES_PER_BATCH: u32 = 50;
+/// Maximum records returned by one paged view call.
+pub const MAX_PAGE: u32 = 50;
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -53,6 +55,7 @@ pub enum Error {
     TooManyDeliveries = 10,
     RetirementNotFound = 11,
     InvalidParams = 12,
+    Paused = 13,
 }
 
 #[contracttype]
@@ -159,6 +162,14 @@ pub struct Stats {
     pub retirements: u64,
 }
 
+/// A batch together with its lab certification (empty while pending).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BatchView {
+    pub batch: Batch,
+    pub certification: Vec<Certification>,
+}
+
 /// Full traceability view used by the public block passport page.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -174,6 +185,7 @@ pub struct Passport {
 enum DataKey {
     Config,
     Stats,
+    Paused,
     NextDelivery,
     NextBatch,
     NextRetirement,
@@ -311,6 +323,20 @@ impl Escomblock {
         env.storage().instance().set(&DataKey::Config, &config);
     }
 
+    /// Emergency stop: blocks deliveries, batches, certifications and
+    /// retirements. Views keep working.
+    pub fn set_paused(env: Env, paused: bool) {
+        Self::config(env.clone()).admin.require_auth();
+        env.storage().instance().set(&DataKey::Paused, &paused);
+        bump_instance(&env);
+    }
+
+    /// Replaces the contract code, keeping its address and storage.
+    pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {
+        Self::config(env.clone()).admin.require_auth();
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+    }
+
     // ------------------------------------------------------------ flow
 
     /// Records a rubble delivery and pays the collector `kg * price_per_kg`
@@ -323,6 +349,7 @@ impl Escomblock {
         origin: String,
     ) -> u64 {
         plant.require_auth();
+        require_active(&env);
         require_role(&env, &plant, Role::Plant);
         if kg == 0 {
             panic_with_error!(&env, Error::InvalidAmount);
@@ -376,6 +403,7 @@ impl Escomblock {
         mix: String,
     ) -> u64 {
         plant.require_auth();
+        require_active(&env);
         require_role(&env, &plant, Role::Plant);
         if blocks == 0 || delivery_ids.is_empty() {
             panic_with_error!(&env, Error::InvalidAmount);
@@ -443,6 +471,7 @@ impl Escomblock {
         report_hash: BytesN<32>,
     ) -> bool {
         lab.require_auth();
+        require_active(&env);
         require_role(&env, &lab, Role::Lab);
         let key = DataKey::Batch(batch_id);
         let mut batch: Batch = env
@@ -508,6 +537,7 @@ impl Escomblock {
     /// Burns `amount` ESCB from `from` and records who claims the impact.
     pub fn retire(env: Env, from: Address, amount: i128, beneficiary: String) -> u64 {
         from.require_auth();
+        require_active(&env);
         if amount <= 0 {
             panic_with_error!(&env, Error::InvalidAmount);
         }
@@ -551,6 +581,53 @@ impl Escomblock {
             .instance()
             .get(&DataKey::Stats)
             .unwrap_or_default()
+    }
+
+    pub fn paused(env: Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
+    }
+
+    /// Deliveries with ids `start..start + limit` (ids start at 1).
+    pub fn deliveries(env: Env, start: u64, limit: u32) -> Vec<Delivery> {
+        let mut out = Vec::new(&env);
+        for id in page(&env, start, limit, DataKey::NextDelivery) {
+            if let Some(d) = env.storage().persistent().get(&DataKey::Delivery(id)) {
+                out.push_back(d);
+            }
+        }
+        out
+    }
+
+    /// Batches with their certification, ids `start..start + limit`.
+    pub fn batches(env: Env, start: u64, limit: u32) -> Vec<BatchView> {
+        let mut out = Vec::new(&env);
+        for id in page(&env, start, limit, DataKey::NextBatch) {
+            if let Some(batch) = env.storage().persistent().get(&DataKey::Batch(id)) {
+                let mut certification = Vec::new(&env);
+                if let Some(c) = Self::certification(env.clone(), id) {
+                    certification.push_back(c);
+                }
+                out.push_back(BatchView {
+                    batch,
+                    certification,
+                });
+            }
+        }
+        out
+    }
+
+    /// Retirements with ids `start..start + limit`.
+    pub fn retirements(env: Env, start: u64, limit: u32) -> Vec<Retirement> {
+        let mut out = Vec::new(&env);
+        for id in page(&env, start, limit, DataKey::NextRetirement) {
+            if let Some(r) = env.storage().persistent().get(&DataKey::Retirement(id)) {
+                out.push_back(r);
+            }
+        }
+        out
     }
 
     pub fn has_role(env: Env, account: Address, role: Role) -> bool {
@@ -627,6 +704,28 @@ impl Escomblock {
 }
 
 // ---------------------------------------------------------------- helpers
+
+fn require_active(env: &Env) {
+    if env
+        .storage()
+        .instance()
+        .get(&DataKey::Paused)
+        .unwrap_or(false)
+    {
+        panic_with_error!(env, Error::Paused);
+    }
+}
+
+/// Ids `start..start + limit`, clamped to existing ids and `MAX_PAGE`.
+fn page(env: &Env, start: u64, limit: u32, counter: DataKey) -> core::ops::Range<u64> {
+    let last: u64 = env.storage().instance().get(&counter).unwrap_or(0);
+    let first = start.max(1);
+    let limit = limit.min(MAX_PAGE) as u64;
+    if limit == 0 || first > last {
+        return 0..0;
+    }
+    first..(last + 1).min(first + limit)
+}
 
 fn require_role(env: &Env, account: &Address, role: Role) {
     if !env

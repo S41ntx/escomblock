@@ -43,6 +43,8 @@ Invariants enforced on-chain:
 
 Events: `RoleSet`, `RubbleDelivered`, `BatchCreated`, `BatchCertified`, `CreditsRetired` (via `#[contractevent]`), so indexers can rebuild history.
 
+Operations: `set_paused` stops every write (views keep working), `upgrade` swaps the Wasm in place, `set_admin` hands control to a new (e.g. multisig) account.
+
 ### `contracts/market`
 
 - `list` checks `batch_summary` on the core contract (certified + owner), never lists more blocks than the batch produced, and escrows `credits_per_block × qty` ESCB.
@@ -55,25 +57,30 @@ Events: `RoleSet`, `RubbleDelivered`, `BatchCreated`, `BatchCertified`, `Credits
 
 | Asset | Type | Admin |
 | --- | --- | --- |
-| USDC | Classic asset + SAC (test issuer on testnet, or Circle USDC) | issuer |
+| USDC | Circle USDC + its SAC on mainnet (a throwaway test issuer on local/testnet seeds) | Circle |
 | ESCB | Classic asset `ESCB:<issuer>` + SAC | **core contract** (`set_admin` after deploy) |
 
-Using SAC for ESCB means credits are first-class Stellar assets: visible in wallets, tradable on the SDEX, and their supply is auditable by anyone. G-accounts need a trustline (`deploy-testnet.sh` creates them for the demo accounts).
+Using SAC for ESCB means credits are first-class Stellar assets: visible in wallets, tradable on the SDEX, and their supply is auditable by anyone. G-accounts need a trustline; the dApp's wallet bar adds the USDC and ESCB trustlines with one click.
+
+After `set_admin`, `scripts/deploy.sh mainnet` locks the ESCB issuer (master weight 0), so classic issuance is impossible and the contract is the only source of ESCB. The asset is described for wallets in a SEP-1 `stellar.toml`.
 
 ## dApp
 
 ```
-app/src/lib/types.ts    domain types + Api interface
-app/src/lib/demo.ts     DemoApi: in-browser port of the contract rules with seed data (Hermosillo)
-app/src/lib/soroban.ts  SorobanApi: contract.Client.from(...) + Freighter signing, error-code mapping
+app/src/lib/types.ts    domain types
+app/src/lib/config.ts   network presets (mainnet with Circle USDC, testnet, local) and contract ids from VITE_* vars
+app/src/lib/soroban.ts  SorobanApi: contract.Client.from(...) reads (no wallet needed), Freighter signing,
+                        trustline activation, contract error codes mapped to Spanish messages
 app/src/views/*         Inicio, Planta, Laboratorio, Mercado, Recolectores, Pasaporte
 ```
 
-Both APIs implement the same interface, so every screen works identically in demo and live mode. The live client loads each contract's spec from the network, so no generated bindings need to be kept in sync.
+The client loads each contract's spec from the network, so no generated bindings need to be kept in sync. Each collection is read with one paged call (`deliveries`, `batches`, `retirements`, `listings`, `orders`; up to 50 records), so a page refresh costs a handful of RPC requests, not one per record. The app refreshes every 30 s.
 
 ## Tests
 
-`cargo test` runs 20 tests:
+`cargo test` runs 25 tests:
 
-- core: instant payout, full flow (certify → mint → passport → retire), failing lab test, heat-cycle requirement, delivery reuse, cross-plant reuse, unregistered actors, self-certification, double certification, revoked roles, invalid inputs, admin params.
-- market: list → buy → ship → confirm → retire, uncertified batch, ownership and over-listing, cancel/refund, cancel after shipping, claim timeout, delist + cancel credit return, guards.
+- core: instant payout, full flow (certify → mint → passport → retire), failing lab test, heat-cycle requirement, delivery reuse, cross-plant reuse, unregistered actors, self-certification, double certification, revoked roles, invalid inputs, admin params, pause, paged views and page-size cap.
+- market: list → buy → ship → confirm → retire, uncertified batch, ownership and over-listing, cancel/refund, cancel after shipping, claim timeout, delist + cancel credit return, guards, pause (open orders still settle), paged views.
+
+`npm run test:it` (app) runs the dApp's Stellar layer against a live network deployed by `scripts/deploy.sh local --seed`: reading without a wallet, trustline activation, role errors, and the full pay → batch → certify → list → buy → ship → confirm → retire flow. CI runs it on a Dockerized `stellar/quickstart` network on every push.
