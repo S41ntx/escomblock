@@ -8,6 +8,12 @@
 
 ---
 
+| Home | Lab certification |
+| --- | --- |
+| ![Home](docs/screenshots/inicio.png) | ![Lab](docs/screenshots/laboratorio.png) |
+| **Block passport** | **Market** |
+| ![Passport](docs/screenshots/pasaporte.png) | ![Market](docs/screenshots/mercado.png) |
+
 ## The problem
 
 - In most of Mexico, construction and demolition rubble (*escombro*) is practically unregulated. It ends up in vacant lots, roadsides and dry riverbeds. The research behind Escomblock found only one company recycling it, selling it as cheap fill to level land.
