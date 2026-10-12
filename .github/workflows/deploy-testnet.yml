@@ -63,6 +63,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/.env.testnet
           git commit -m "Testnet deployment: contract ids for the app" || exit 0
+          git pull --rebase origin "$GITHUB_REF_NAME"
           git push
       - name: Summary
         run: |
